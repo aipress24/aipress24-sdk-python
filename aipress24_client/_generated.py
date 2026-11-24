@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """AUTO-GENERATED from the OpenAPI spec by ``generate.py`` — do not edit.
 
-Regenerate with ``make api-sdk``. A unit test asserts this file matches the
-served ``/api/v1/openapi.json``.
+Regenerate with ``make generate``. A unit test asserts that this file matches
+the committed ``openapi.json``.
 """
 
 from __future__ import annotations

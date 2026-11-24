@@ -1,31 +1,60 @@
 # AIpress24 Python client
 
-A tiny, **dependency-free** client for the AIpress24 public API (`/api/v1`). It
-uses only the Python standard library, so you can `pip install` it or just vendor
-the `aipress24_client/` package.
-
-The transport (`Client`, `Page`, `ApiError`) is hand-written and stable. The
-drift-prone parts — the collection list and the per-resource typed models
-(`aipress24_client/_generated.py`) — are **generated from the OpenAPI spec**:
-run `make api-sdk` from the repo root to regenerate. A test asserts the
-committed file stays in sync with the spec, so the client can't silently drift.
+A dependency-free Python client for the AIpress24 public API (`/api/v1`), and an `aipress24` command that creates press releases from folders.
 
 ## Install
 
+Until the package is on PyPI:
+
 ```bash
-pip install ./sdk/python          # from a checkout
-# or vendor the aipress24_client/ package into your project
+pip install git+https://github.com/aipress24/aipress24-sdk-python      # the client, standard library only
+uv tool install "aipress24-client[cli] @ git+https://github.com/aipress24/aipress24-sdk-python"  # the command
 ```
 
 ## Authentication
 
-The API is authenticated with a **bearer token**. Ask an AIpress24 administrator
-to issue one (they run `flask api-token issue --email you@example.com`). A token
-carries scopes — `read:content`, `read:organisations`, `read:directory`,
-`read:self` (your own `/me` data) and `write:content` (author & publish your own
-content) — and can be revoked at any time.
+The API is authenticated with a **bearer token**. Ask an AIpress24 administrator to issue one (they run `flask api-token issue --email you@example.com`). A token carries scopes — `read:content`, `read:organisations`, `read:directory`, `read:self` (your own `/me` data) and `write:content` (author & publish your own content) — and can be revoked at any time.
 
-## Usage
+## Press releases from a folder
+
+A folder holds one Markdown file and its images:
+
+```markdown
+---
+titre: "Acme lance le Widget"
+chapo: Un widget plus léger.
+genre: …
+section: …
+topic: …
+sector: …
+pays_zip_ville: FRA
+pays_zip_ville_detail: FRA / 75001 Paris
+images:
+  - file: cover.jpg      # the first one is the cover
+    caption: Le Widget
+    copyright: Acme
+  - file: factory.png
+---
+
+Le texte du communiqué, en **Markdown**.
+```
+
+Only `titre` is required for a draft; publishing also needs a text, `genre`, `section`, `topic` and `sector`. The other keys are `geo_localisation`, `language`, `address`, `publisher_id` (to publish for a client organisation) and `embargoed_until` (a date with a time zone, before which publishing is refused; nothing is scheduled). Raw HTML and images in the text are not supported.
+
+```bash
+export AIPRESS24_TOKEN=a24_…          # or ~/.config/aipress24/token, in mode 600
+aipress24 values genre                # the accepted values: genre, section, topic, sector
+aipress24 check my-release            # validate, sending nothing about the release
+aipress24 push my-release             # create the draft, then update it
+aipress24 push --publish my-release   # …and publish it
+aipress24 status my-release
+```
+
+The token needs `read:self` and `write:content`. `push` writes `.aipress24.json` in the folder, to update the same release next time: keep it. Pushing a published release updates it in place. If the release was changed on the site since the last push, `push` stops; `--force` overwrites it, its images included. Removing a key from the front matter leaves its value on the site: write `chapo: ""` to clear it.
+
+Use `--base-url` (before the command) or `AIPRESS24_URL` for another site than `https://aipress24.com`.
+
+## Usage from Python
 
 ```python
 from aipress24_client import Client, ApiError
@@ -55,9 +84,7 @@ except ApiError as exc:
     print(exc.status, exc.payload)
 ```
 
-Responses are typed (`Article`, `Member`, …: `TypedDict`s generated from the
-spec). The client only ever sends the token to `base_url`: it refuses links to
-another origin and does not follow redirects.
+Responses are typed (`Article`, `Member`, …: `TypedDict`s generated from the spec). The client only ever sends the token to `base_url`: it refuses links to another origin and does not follow redirects.
 
 ## Public read resources
 
@@ -72,10 +99,7 @@ another origin and does not follow redirects.
 
 ## Owner-scoped data & writes (`/me`)
 
-`me()` returns your own profile (`read:self`). Your own records — in any status,
-including drafts — are read generically (`read:self`), and the content types can
-be authored and published (`write:content`). `collection` is a path segment such
-as `me/press-releases`, `me/articles` or `me/events`.
+`me()` returns your own profile (`read:self`). Your own records — in any status, including drafts — are read generically (`read:self`), and the content types can be authored and published (`write:content`). `collection` is a path segment such as `me/press-releases`, `me/articles` or `me/events`.
 
 | Method | Endpoint | Scope |
 |---|---|---|
@@ -104,9 +128,7 @@ with open("cover.jpg", "rb") as cover:
 api.publish("me/press-releases", pr["id"])
 ```
 
-Publishing also requires `genre`, `section`, `topic` and `sector`, with values
-from `press_release_vocabularies()`. Upload the images first: the first one is
-the cover.
+Publishing also requires `genre`, `section`, `topic` and `sector`, with values from `press_release_vocabularies()`. Upload the images first: the first one is the cover.
 
 | Method | Endpoint | Scope |
 |---|---|---|
@@ -115,9 +137,11 @@ the cover.
 | `add_press_release_image(id, content, filename, caption, copyright)` | `POST …/images` | `write:content` |
 | `delete_press_release_image(id, image_id)` | `DELETE …/images/{image_id}` | `write:content` |
 
-Interactive documentation (OpenAPI) is served live at
-`https://aipress24.com/api/v1/docs` (Swagger UI) and `/api/v1/redoc`, with the raw
-spec at `/api/v1/openapi.json`.
+Interactive documentation (OpenAPI) is served live at `https://aipress24.com/api/v1/docs` (Swagger UI) and `/api/v1/redoc`, with the raw spec at `/api/v1/openapi.json`.
+
+## Development
+
+`make check` runs the linters and the tests. `aipress24_client/_generated.py` (the typed models and the list of collections) is generated from `openapi.json`, a copy of the application's spec: `make generate` refreshes both from a checkout of `aipress24` next to this one, or from `SPEC=path/to/openapi.json`.
 
 ## License
 

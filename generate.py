@@ -9,10 +9,10 @@ the spec, so the client can't fall out of step with ``/api/v1/openapi.json``.
 
 Usage::
 
-    python sdk/python/generate.py path/to/openapi.json
+    python generate.py path/to/openapi.json
 
-``make api-sdk`` exports the live spec and runs this; a unit test regenerates
-in-memory and asserts the committed file still matches the spec.
+``make generate`` copies the application's spec and runs this; a unit test
+asserts that the committed file matches the committed spec.
 """
 
 from __future__ import annotations
@@ -32,8 +32,8 @@ _HEADER = '''# Copyright (c) 2025, Abilian SAS & TCA
 # SPDX-License-Identifier: Apache-2.0
 """AUTO-GENERATED from the OpenAPI spec by ``generate.py`` — do not edit.
 
-Regenerate with ``make api-sdk``. A unit test asserts this file matches the
-served ``/api/v1/openapi.json``.
+Regenerate with ``make generate``. A unit test asserts that this file matches
+the committed ``openapi.json``.
 """
 
 from __future__ import annotations
