@@ -15,5 +15,5 @@ lint:
 
 generate:
 	cp $(SPEC) openapi.json
-	uv run python generate.py openapi.json
-	uv run ruff format aipress24_client/_generated.py
+	uv run python scripts/generate.py openapi.json
+	uv run ruff format src/aipress24_client/_generated.py

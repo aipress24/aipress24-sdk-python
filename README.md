@@ -4,6 +4,8 @@ A dependency-free Python client for the AIpress24 public API (`/api/v1`), and an
 
 ## Install
 
+Python 3.11 or later is needed.
+
 Until the package is on PyPI:
 
 ```bash
@@ -52,7 +54,7 @@ aipress24 status my-release
 
 The token needs `read:self` and `write:content`. `push` writes `.aipress24.json` in the folder, to update the same release next time: keep it. Pushing a published release updates it in place. If the release was changed on the site since the last push, `push` stops; `--force` overwrites it, its images included. Removing a key from the front matter leaves its value on the site: write `chapo: ""` to clear it.
 
-Use `--base-url` (before the command) or `AIPRESS24_URL` for another site than `https://aipress24.com`.
+Use `--base-url` or `AIPRESS24_URL` for another site than `https://aipress24.com`.
 
 ## Usage from Python
 
@@ -141,7 +143,7 @@ Interactive documentation (OpenAPI) is served live at `https://aipress24.com/api
 
 ## Development
 
-`make check` runs the linters and the tests. `aipress24_client/_generated.py` (the typed models and the list of collections) is generated from `openapi.json`, a copy of the application's spec: `make generate` refreshes both from a checkout of `aipress24` next to this one, or from `SPEC=path/to/openapi.json`.
+The package is in `src/`, the generator in `scripts/`. `make check` runs the linters and the tests. `src/aipress24_client/_generated.py` (the typed models and the list of collections) is generated from `openapi.json`, a copy of the application's spec: `make generate` refreshes both from a checkout of `aipress24` next to this one, or from `SPEC=path/to/openapi.json`.
 
 ## License
 

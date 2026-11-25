@@ -13,6 +13,12 @@ from typing import Any
 import pytest
 
 from aipress24_client import ApiError, Client, cli
+from aipress24_client.cli.errors import CliError
+from aipress24_client.cli.release import load_release
+from aipress24_client.cli.state import STATE_FILE
+from aipress24_client.cli.sync import check_classification
+from aipress24_client.cli.sync import push as sync_push
+from aipress24_client.cli.token import find_token
 
 SOURCE = """---
 titre: "Acme lance le Widget"
@@ -112,7 +118,7 @@ def folder(tmp_path: Path) -> Path:
 
 
 def push(site: FakeSite, folder: Path, publish: bool = False, force: bool = False):
-    cli.push(site, folder, cli.load_release(folder), publish=publish, force=force)
+    sync_push(site, folder, load_release(folder), publish=publish, force=force)
 
 
 def edit(folder: Path, old: str, new: str) -> None:
@@ -123,7 +129,7 @@ def edit(folder: Path, old: str, new: str) -> None:
 
 
 def test_the_folder_is_read(folder: Path) -> None:
-    release = cli.load_release(folder)
+    release = load_release(folder)
 
     assert release.fields["titre"] == "Acme lance le Widget"
     assert "<strong>widget</strong>" in release.fields["contenu"]
@@ -133,13 +139,23 @@ def test_the_folder_is_read(folder: Path) -> None:
     assert release.missing_to_publish() == []
 
 
+def test_a_push_shows_the_page_of_the_release(
+    site: FakeSite, folder: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    url = "https://ex.test/wip/communiques/7/"
+    push(site, folder)
+    assert f"Created draft: {url}\n" in capsys.readouterr().out
+    push(site, folder)
+    assert f"Updated: {url}\n" in capsys.readouterr().out
+
+
 def test_a_first_push_creates_a_draft(site: FakeSite, folder: Path) -> None:
     push(site, folder)
 
     assert site.release["status"] == "draft"
     assert site.sent == ["cover.jpg", "other.png"]
     assert site.images[0]["caption"] == "La couverture"
-    state = json.loads((folder / cli.STATE_FILE).read_text())
+    state = json.loads((folder / STATE_FILE).read_text())
     assert state["id"] == 7
 
 
@@ -177,7 +193,7 @@ def test_a_change_made_on_the_site_is_kept_unless_forced(
     push(site, folder)
     site.touch(titre="Edited on the site")
 
-    with pytest.raises(cli.CliError, match="--force"):
+    with pytest.raises(CliError, match="--force"):
         push(site, folder)
     assert site.release["titre"] == "Edited on the site"
 
@@ -203,7 +219,7 @@ def test_an_interrupted_push_can_be_run_again(
 
 def test_a_folder_stays_bound_to_its_site(site: FakeSite, folder: Path) -> None:
     push(site, folder)
-    with pytest.raises(cli.CliError, match="was pushed to"):
+    with pytest.raises(CliError, match="was pushed to"):
         push(FakeSite("https://other.test"), folder)
 
 
@@ -212,7 +228,7 @@ def test_a_release_deleted_on_the_site_is_not_created_again(
 ) -> None:
     push(site, folder)
     site.release = {}
-    with pytest.raises(cli.CliError, match="not on the site"):
+    with pytest.raises(CliError, match="not on the site"):
         push(site, folder)
 
 
@@ -241,25 +257,25 @@ def test_invalid_folders_are_refused(
     (folder / "link.png").symlink_to(secret)
     edit(folder, old, new)
 
-    with pytest.raises(cli.CliError, match=message):
-        cli.load_release(folder)
+    with pytest.raises(CliError, match=message):
+        load_release(folder)
 
 
 def test_an_embargo_keeps_its_time_zone(folder: Path) -> None:
     edit(folder, "chapo: Un widget.", "embargoed_until: 2026-12-01T08:00:00+01:00")
-    fields = cli.load_release(folder).fields
+    fields = load_release(folder).fields
     assert fields["embargoed_until"] == "2026-12-01T08:00:00+01:00"
 
 
 def test_raw_html_is_shown_as_text(folder: Path) -> None:
     edit(folder, "Un **widget**.", "<script>x</script>")
-    assert "<script>" not in cli.load_release(folder).fields["contenu"]
+    assert "<script>" not in load_release(folder).fields["contenu"]
 
 
 def test_an_unknown_classification_is_refused(site: FakeSite, folder: Path) -> None:
     edit(folder, "Annonce", "Inconnu")
-    with pytest.raises(cli.CliError, match="aipress24 values genre"):
-        cli.check_classification(cli.load_release(folder), site)
+    with pytest.raises(CliError, match="aipress24 values genre"):
+        check_classification(load_release(folder), site)
 
 
 def test_check_works_without_a_token(
@@ -287,7 +303,43 @@ def test_a_token_file_others_can_read_is_refused(
     path.write_text("a24_x\n")
 
     path.chmod(0o644)
-    with pytest.raises(cli.CliError, match="chmod 600"):
-        cli.find_token()
+    with pytest.raises(CliError, match="chmod 600"):
+        find_token()
     path.chmod(0o600)
-    assert cli.find_token() == "a24_x"
+    assert find_token() == "a24_x"
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [[], ["nope"], ["push"], ["values", "nope"], ["status", "x", "--nope"]],
+)
+def test_usage(argv: list[str], capsys: pytest.CaptureFixture[str]) -> None:
+    assert cli.main(argv) == (2 if argv else 0)
+    captured = capsys.readouterr()
+    assert captured.err if argv else "push" in captured.out
+
+
+@pytest.mark.parametrize("command", ["check", "push", "status", "values"])
+def test_each_command_has_its_help(
+    command: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert cli.main([command, "--help"]) == 0
+    assert f"aipress24 {command}" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("source", ["before", "after", "environment"])
+def test_the_site_can_be_chosen(
+    source: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("AIPRESS24_TOKEN", "a24_x")
+    url = "http://127.0.0.1:1"
+    argv = ["values", "genre"]
+    if source == "before":
+        argv = ["--base-url", url, *argv]
+    elif source == "after":
+        argv = [*argv, "--base-url", url]
+    else:
+        monkeypatch.setenv("AIPRESS24_URL", url)
+
+    assert cli.main(argv) == 1
+    assert f"Cannot reach {url}" in capsys.readouterr().err

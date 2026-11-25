@@ -10,9 +10,10 @@ import json
 from pathlib import Path
 
 import generate
+
 from aipress24_client import _generated
 
-SPEC = Path(generate.__file__).parent / "openapi.json"
+SPEC = Path(generate.__file__).parents[1] / "openapi.json"
 
 
 def test_generated_module_matches_the_committed_spec() -> None:

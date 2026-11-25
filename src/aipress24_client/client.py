@@ -1,21 +1,7 @@
 # Copyright (c) 2025, Abilian SAS & TCA
 #
 # SPDX-License-Identifier: Apache-2.0
-"""A tiny, dependency-free Python client for the AIpress24 public API.
-
-Uses only the standard library (``urllib``), so it can be vendored or
-``pip install``-ed with no transitive dependencies.
-
-    from aipress24_client import Client
-
-    api = Client(token="a24_…", base_url="https://aipress24.com")
-    for article in api.iter("articles"):
-        print(article["title"], article["_links"]["self"]["href"])
-
-Every resource is exposed generically via :meth:`Client.list`,
-:meth:`Client.get_one` and :meth:`Client.iter`, plus named convenience
-methods (``articles``, ``events``, ``members``, …).
-"""
+"""The HTTP client: transport, pagination and one method per resource."""
 
 from __future__ import annotations
 
@@ -28,10 +14,7 @@ import uuid
 from collections.abc import Iterator, Sequence
 from typing import Any, Generic, TypeVar, cast
 
-# COLLECTIONS and the per-resource TypedDict models are generated from the
-# OpenAPI spec (see ../generate.py); a unit test keeps them in sync.
 from ._generated import (
-    COLLECTIONS,
     Article,
     BusinessWall,
     Event,
@@ -42,24 +25,6 @@ from ._generated import (
     PressReleaseVocabularies,
     SelfProfile,
 )
-
-__all__ = [
-    "COLLECTIONS",
-    "ApiError",
-    "Article",
-    "BusinessWall",
-    "Client",
-    "Event",
-    "Member",
-    "Organisation",
-    "Page",
-    "PressRelease",
-    "PressReleaseImage",
-    "PressReleaseVocabularies",
-    "SelfProfile",
-]
-
-__version__ = "0.1.0"
 
 DEFAULT_BASE_URL = "https://aipress24.com"
 API_PREFIX = "/api/v1"

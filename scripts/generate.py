@@ -9,7 +9,7 @@ the spec, so the client can't fall out of step with ``/api/v1/openapi.json``.
 
 Usage::
 
-    python generate.py path/to/openapi.json
+    python scripts/generate.py path/to/openapi.json
 
 ``make generate`` copies the application's spec and runs this; a unit test
 asserts that the committed file matches the committed spec.
@@ -144,7 +144,7 @@ def main(argv: list[str]) -> int:
         print("usage: generate.py path/to/openapi.json", file=sys.stderr)
         return 2
     spec = json.loads(Path(argv[1]).read_text(encoding="utf-8"))
-    target = Path(__file__).parent / "aipress24_client" / "_generated.py"
+    target = Path(__file__).parents[1] / "src" / "aipress24_client" / "_generated.py"
     target.write_text(generate(spec), encoding="utf-8")
     print(f"wrote {target}")
     return 0
