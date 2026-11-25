@@ -12,10 +12,10 @@ Publish existing documents in bulk, safely: a first import, a re-run after a fai
 aipress24 <noun> <verb> [ARGUMENT...] [--option...]
 ```
 
-- A noun is singular, hyphenated, and names the same thing as the API: `press-release`, never "news" or "release".
+- A noun is singular, hyphenated, and names the same thing as the API: `press-release` (neither "news" nor "release").
 - A verb means the same thing under every noun. A noun only has the verbs that apply to it.
 - There is no default noun, no default verb and no alias: one way to say each thing.
-- Every verb that takes documents takes several.
+- Every verb that accepts documents accepts several.
 - A command that is not implemented does not exist: it is not listed in the help.
 - Commands, options, messages and document keys are in English. Classification values stay as the site has them.
 
@@ -36,7 +36,7 @@ aipress24 <noun> <verb> [ARGUMENT...] [--option...]
 
 ## Content verbs
 
-They are the same for `press-release`, `article` and `event`. Each states the result wanted, not the operation: run twice, it does nothing the second time.
+They are the same for `press-release`, `article` and `event`. Each states the result wanted: a second run has no effect.
 
 | Verb | Result | Argument | Writes to the site |
 |---|---|---|---|
@@ -47,16 +47,16 @@ They are the same for `press-release`, `article` and `event`. Each states the re
 | `unpublish` | each item is a draft again | source or item | yes, visible |
 | `delete` | each item is gone | source or item | yes, final |
 | `list` | your items; `--public` for everyone's public ones | none | no |
-| `show` | one item, with its page | source or item | no |
+| `show` | one item, with a link to the page | source or item | no |
 | `new` | a folder to fill in (phase 2) | path | no |
 
-A **source** is a path: a document, a folder holding one, or a catalog. An **item** is something on the site, given by its id or the URL of its page. A path made only of digits is written `./123`.
+A **source** is a path: a document, a folder holding one, or a catalog. A path made only of digits is written `./123`, to tell it from an id. An **item** is something on the site, given by id or by the URL of a page.
 
-`draft` never changes what the public sees: a document already public is reported and left alone. Only `publish` updates a public text. `publish` on a source sends what changed and then publishes; on an item it publishes what is on the site, and sends nothing.
+`draft` leaves what the public sees unchanged: a document already public is reported and left alone. Only `publish` updates a public text. `publish` on a source sends what changed and then publishes; on an item it publishes what is on the site, without sending anything.
 
 ## Documents
 
-A document is a Markdown file with a YAML front matter, or an HTML file, next to its images. Word and PDF come later. Keys are the same for the three contents where they mean the same thing:
+A document is written in Markdown with a YAML front matter, or in HTML, and sits next to the images. Word and PDF come later. Keys are the same for the three contents where they mean the same thing:
 
 | Key | API field | Press release | Article | Event |
 |---|---|---|---|---|
@@ -75,11 +75,11 @@ A document is a Markdown file with a YAML front matter, or an HTML file, next to
 
 (1) Needs the API to accept it first, as it now does for press releases.
 
-`publisher` is an id or an exact name from `publisher list`. It defaults to your own organisation; without either, `check` fails. `published_at` is a date or a date and time with its zone; a bare date means 6:00 in Paris, so that today is rarely still to come. Images found in the body move to the carousel, after the listed ones, and `check` says so. Images must be files under the document's folder, or the catalog's.
+`publisher` is an id or an exact name from `publisher list`. It defaults to your organisation; without either, `check` fails. `published_at` is a date, or a date and time with a zone; a bare date means 6:00 in Paris, so that today is rarely still to come. Images found in the body move to the carousel, after the listed ones, and `check` says so. Images must be in the folder of the document or of the catalog, or below.
 
-Raw HTML is kept, less what the site cannot show (scripts, frames, forms…). Relative links are resolved against `reference` when it is a URL. An HTML page gives its title, summary, reference and date from its usual metadata; its classification comes from a catalog. Keys that are not in this table are ignored and mentioned, as existing documents have their own.
+Raw HTML is kept, less what the site cannot show (scripts, frames, forms…). Relative links are resolved against `reference` when it is a URL. The title, summary, reference and date of an HTML page come from the usual metadata; the classification comes from a catalog. Keys that are not in this table are ignored and mentioned, as existing documents have other keys.
 
-`reference` is what prevents duplicates, so it is explicit: best the URL of the original, otherwise any stable name. It is not derived from the path, as moving a file would create a second item.
+`reference` is what prevents duplicates, so it is explicit: best the URL of the original, otherwise any stable name. It is not derived from the path, as moving a document would create a second item.
 
 ## Catalog
 
@@ -90,71 +90,71 @@ aipress24 catalog create content/fr/news -o abilian.csv
 aipress24 catalog update abilian.csv content/fr/news
 ```
 
-It is a CSV file, one line for each document:
+It is a table in CSV, with one line for each document:
 
 | Column | Meaning |
 |---|---|
 | `source` | path, relative to the catalog; `archive.zip#id` for a message of an archive |
 | `type` | `press-release`, `article`, `event`, `post` or `skip`; empty while undecided |
 | `reference` `title` `published_at` `publisher` `genre` `section` `topic` `sector` | as in a document |
-| `popularity` | for a message, how many liked or shared it; never sent |
-| `note` | free text, never sent |
+| `popularity` | for a message, how many liked or shared it; not sent |
+| `note` | free text, not sent |
 
 - `create` fills in what the documents say and refuses to overwrite a file. `update` appends the new documents and touches no existing line.
 - A cell that is not empty wins over the document's front matter. An empty cell does not clear anything.
-- A content verb takes the lines of its own type: `press-release draft abilian.csv` ignores events, `skip` and undecided lines, and says how many.
-- The catalog holds decisions, never results: no id, status or URL is written to it. `catalog status` shows those, for all types.
+- A content verb reads the lines of the matching type: `press-release draft abilian.csv` ignores events, `skip` and undecided lines, and says how many.
+- The catalog holds decisions only: no id, status or URL is written to it. `catalog status` shows those, for all types.
 
 Options of content verbs on a catalog: `--only PATTERN` (repeatable, matches `source` or `reference`) and `--limit N`.
 
 ## Archives of social networks
 
-`catalog create` also takes the archive of an account, when it is named: Mastodon or Twitter (`.zip`), or Bluesky (`.car`). Each message is a line, of type `post` or, for a reason given in `note`, `skip`:
+`catalog create` also accepts the archive of an account, when it is named: Mastodon or Twitter (`.zip`), or Bluesky (`.car`). Each message is a line, of type `post` or, for a reason given in `note`, `skip`:
 
 | Message | Line |
 |---|---|
-| original and public, with the rest of its thread | `post` |
+| original and public, with the rest of the thread | `post` |
 | reply to someone, or in the thread of someone else | `skip` |
 | begins with a mention (Mastodon): a reply whose parent was deleted | `skip` |
 | unlisted (Mastodon); withheld or sensitive, or from an account that was protected at some time (Twitter) | `skip` |
-| quotes a message, holds the text of someone else (`“@x: …”`, `RT @x`), or nothing but a link (Twitter) | `skip` |
+| quotes a message, holds the text of someone else (`“@x: …”`, `RT @x`), or is only a link (Twitter) | `skip` |
 | same text within 3 days as one already listed, on the same network or another | `skip`, `same as URL` |
-| nothing to read and no image | `skip` |
+| no text and no image | `skip` |
 | private, or someone else's (boost, repost, retweet) | no line, and it cannot be asked for |
 
-A type can be changed, but a private message is never read, even when a line names it. Archives are compared in the order they are given, so give first the one that holds images: Bluesky's does not. The reference of a message is its URL, so a newer archive of the same account only adds what is new. The `title` column is the beginning of the text, to recognise it, and is not sent.
+A type can be changed, but a private message is never read, even when a line names it. Archives are compared in the order they are given, so give first the one that holds images: Bluesky's does not. The reference of a message is the original URL, so a newer archive of the same account only adds what is new. The `title` column is the beginning of the text, to recognise it, and is not sent.
 
-Links are written in full, mentions as `@name@server`, and the declared language is ignored, as it is often wrong. Only the files of public messages and their images are opened: not the likes, bookmarks, direct messages, deleted messages or addresses. 
+Links are written in full, and mentions as `@name@server`. The declared language is ignored, as it is often wrong. Only the files of public messages and their images are opened: not the likes, bookmarks, direct messages, deleted messages or addresses.
 
 ### Shortened links
 
-`catalog resolve posts.csv` asks `bit.ly`, `buff.ly`… where the links of the posts lead, once each, and writes the answers in `posts.links.csv`, next to the catalog. From then on, the targets replace the links in what is checked and sent. The file can be corrected by hand: `target` is what is used, and a link whose target is empty is kept as it is. What failed for a passing reason is asked again the next time; a dead link is not.
+`catalog resolve posts.csv` asks `bit.ly`, `buff.ly`… where the links of the posts lead, once each, and writes the answers in `posts.links.csv`, next to the catalog. From then on, the targets replace the links in what is checked and sent. The file can be corrected by hand: the command uses `target`, and keeps the links whose target is empty. A link that failed for a passing reason is asked again the next time; a dead one is not.
 
-Only known shorteners are asked, never the sites they lead to. It is worth doing before the first `publish`, as a post cannot be modified: `check` mentions the shortened links that remain.
+Only known shorteners are asked; the sites they lead to are not contacted. Run `catalog resolve` before the first `publish`, as a post cannot be modified: `check` mentions the shortened links that remain.
 
 ## Posts
 
-A post has no draft and cannot be modified, so `post` has neither `draft` nor `unpublish`, and `publish` takes catalogs only. It answers `published`, `unchanged`, `deleted` (it was sent from here, and is not on the site any more; `--recreate` sends it again) or `different` (delete it, then publish it again). A post is sent with its images in one request, at its own date, and shows where it was first published.
+A post has no draft and cannot be modified, so `post` has neither `draft` nor `unpublish`, and `publish` accepts catalogs only. It answers `published`, `unchanged`, `deleted` (it was sent from here, and is not on the site any more; `--recreate` sends it again) or `different` (delete it, then publish it again). A post is sent with the images in one request, at the original date, and shows where it was first published.
 
-`post delete catalog.csv` undoes an import, and takes `--only` and `--limit`. The site allows 50 new posts and 1000 imported ones in 24 hours: beyond, the command stops, and the same one does the rest the next day. Posting needs the `write:social` scope, and `read:self`.
+`post delete catalog.csv` undoes an import, and accepts `--only` and `--limit`. The site allows 50 new posts and 1000 imported ones in 24 hours. Beyond that, the command stops; running it again the next day does the rest. Posting needs the `write:social` scope, and `read:self`.
 
 ## Sending
 
-Everything is read and checked before the first write. If a document is invalid, nothing is sent; `--skip-invalid` sends the others. Then each document is sent on its own: a failure does not stop the next ones, except a refused token, which stops everything. Running the command again does what is left.
+Everything is read and checked before the first write. If a document is invalid, none is sent; `--skip-invalid` sends the others. Then documents are sent one by one: a failure does not stop the next ones, except a refused token, which stops everything. Running the command again does what is left.
 
 The command remembers what it last sent in `.aipress24/`, next to the catalog, or in the document's folder when there is none. This is a cache and is not mentioned to the user: without it, documents are found again by `reference`.
 
 | Document since last sent | On the site since | `draft` / `publish` |
 |---|---|---|
 | new | absent | create |
-| unchanged | unchanged | nothing to send |
+| unchanged | unchanged | no action |
 | changed | unchanged | update |
 | unchanged | changed | keep the site's version |
 | changed | changed | conflict: skipped, unless `--overwrite` |
 | any | deleted | skipped, unless `--recreate` |
 | never sent from here | present, found by `reference` | conflict: skipped, unless `--overwrite` |
 
-So a draft corrected on the site during review is published as corrected. Conflicts are reported together at the end, with the fields that differ, and are never asked about one by one.
+So a draft corrected on the site during review is published as corrected. Conflicts are reported together at the end, with the fields that differ, without a question for each.
 
 A creation whose answer was lost is found again by `reference` the next time, and known to be ours. Only reads are retried, on a network error or a 5xx.
 
@@ -170,11 +170,11 @@ Publish 10 press releases on https://aipress24.com, for Abilian:
 Continue? [y/N]
 ```
 
-`--yes` answers it, and is required when there is no terminal. It never implies `--overwrite` or `--recreate`. `--dry-run` shows the same and stops. `draft` does not ask: nobody else sees the result.
+`--yes` answers it, and is required when there is no terminal. It does not imply `--overwrite` or `--recreate`. `--dry-run` shows the same and stops. `draft` does not ask, as only you see the result.
 
 ## Output
 
-One line for each document, then a summary, then what to do next:
+A command prints one line for each document, then a summary, then what to do next:
 
 ```
 $ aipress24 press-release draft abilian.csv
@@ -203,13 +203,13 @@ Results go to stdout; questions, progress and errors to stderr. `--json` prints 
 | `--json` | | output for programs |
 | `--help`, `--version` | | |
 
-They are accepted anywhere on the line. The token is never an option, as it would show in the process list: it comes from `AIPRESS24_TOKEN`, or from `auth login`, which asks for it, verifies it and stores one token per site in mode 600.
+They are accepted anywhere on the line. The token is not an option, as it would show in the process list: it comes from `AIPRESS24_TOKEN`, or from `auth login`, which asks for it, verifies it and stores one token per site in mode 600.
 
 ## The other nouns
 
-- `auth status` shows the site, the account, its organisation and how many organisations it may publish for.
-- `publisher list` shows id and name, your own organisation first.
-- `vocabulary list press-release.genre` prints one value per line. `vocabulary search cloud` looks in every vocabulary, ignoring case and accents, and prefixes each value with its field. A refused value in `check` comes with the closest ones.
+- `auth status` shows the site, the account, the organisation it belongs to and how many it may publish for.
+- `publisher list` shows id and name, yours first.
+- `vocabulary list press-release.genre` prints one value per line. `vocabulary search cloud` looks in every vocabulary, ignoring case and accents, and prefixes each value with the field. A refused value in `check` comes with the closest ones.
 
 ## Phases
 

@@ -1,6 +1,6 @@
 # AIpress24 Python client
 
-A dependency-free Python client for the AIpress24 public API (`/api/v1`), and an `aipress24` command that publishes existing press releases in bulk.
+This package holds a dependency-free Python client for the AIpress24 public API (`/api/v1`). It also installs an `aipress24` command, which publishes existing press releases and messages in bulk.
 
 ## Install
 
@@ -15,7 +15,7 @@ uv tool install "aipress24-client[cli] @ git+https://github.com/aipress24/aipres
 
 ## Authentication
 
-The API is authenticated with a **bearer token**. Ask an AIpress24 administrator to issue one (they run `flask api-token issue --email you@example.com`). A token carries scopes — `read:content`, `read:organisations`, `read:directory`, `read:self` (your own `/me` data), `write:content` (author & publish your own content) and `write:social` (post on the wall) — and can be revoked at any time.
+The API is authenticated with a **bearer token**. Ask an AIpress24 administrator to issue one (they run `flask api-token issue --email you@example.com`). Its scopes are among `read:content`, `read:organisations`, `read:directory`, `read:self` (your own `/me` data), `write:content` (author & publish your own content) and `write:social` (post on the wall). A token can be revoked at any time.
 
 ## Publishing existing press releases
 
@@ -36,9 +36,9 @@ aipress24 press-release publish news.csv              # have them public, after 
 aipress24 press-release status news.csv
 ```
 
-Each command states a result: run again, it does what is left. What was corrected on the site is kept, what was deleted there is not created again, and what changed on both sides is reported as a conflict.
+Each command states a result: run again, it does what is left. Corrections made on the site are kept. A press release deleted there is not created again. Changes made on both sides are reported as a conflict.
 
-A document is a Markdown or an HTML file, and can also be given alone, without a table:
+A document is written in Markdown or HTML, and can also be given alone, without a table:
 
 ```markdown
 ---
@@ -109,7 +109,7 @@ Responses are typed (`Article`, `Member`, …: `TypedDict`s generated from the s
 
 ## Owner-scoped data & writes (`/me`)
 
-`me()` returns your own profile (`read:self`). Your own records — in any status, including drafts — are read generically (`read:self`), and the content types can be authored and published (`write:content`). `collection` is a path segment such as `me/press-releases`, `me/articles` or `me/events`.
+`me()` returns your own profile (`read:self`). Your own records are read generically (`read:self`), in any status, drafts included. The content types can be authored and published (`write:content`). `collection` is a path segment such as `me/press-releases`, `me/articles` or `me/events`.
 
 | Method | Endpoint | Scope |
 |---|---|---|
