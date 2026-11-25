@@ -139,6 +139,8 @@ def catalog_status(table: Path, /, *, ctx: Ctx) -> None:
         document = load_row(table, row)
         if row.type == press_release.KIND:
             show_status(ctx, plan_document(ctx.site, document))
+        elif row.type == post.KIND:
+            post.show_status(ctx, document)
         else:
             kind = row.type or "undecided"
             ctx.result(

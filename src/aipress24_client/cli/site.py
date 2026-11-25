@@ -19,6 +19,7 @@ from .plan import Remote
 from .vocabulary import closest
 
 COLLECTION = "me/press-releases"
+POSTS = "me/posts"
 RETRY_DELAYS = (1, 3)
 NETWORK_ERRORS = (OSError, HTTPException)
 
@@ -61,21 +62,37 @@ class Site:
     def items(self) -> list[dict[str, Any]]:
         return list(self.client.iter(COLLECTION, limit=100))
 
+    @cached_property
+    def posts(self) -> list[dict[str, Any]]:
+        try:
+            return list(self.client.iter(POSTS, limit=100))
+        except ApiError as error:
+            if error.status == 404:
+                msg = f"{self.url} does not offer what this command needs yet."
+                raise CliError(msg) from error
+            raise
+
     def find_item(self, target: str) -> dict[str, Any]:
-        """The release with this id, or whose page has this URL."""
+        return self._find(target, self.items, "press releases")
+
+    def find_post(self, target: str) -> dict[str, Any]:
+        return self._find(target, self.posts, "posts")
+
+    def _find(
+        self, target: str, items: list[dict[str, Any]], noun: str
+    ) -> dict[str, Any]:
+        """The item with this id, or whose page has this URL."""
         if target.isdigit():
-            found = [item for item in self.items if item["id"] == int(target)]
+            found = [item for item in items if item["id"] == int(target)]
         else:
             path = urlsplit(target).path.rstrip("/")
             if not target.startswith(f"{self.url}/"):
                 raise UsageError(f"{target} is not on {self.url}.")
             found = [
-                item
-                for item in self.items
-                if urlsplit(page(item)).path.rstrip("/") == path
+                item for item in items if urlsplit(page(item)).path.rstrip("/") == path
             ]
         if not found:
-            raise CliError(f"{target} is not one of your press releases.")
+            raise CliError(f"{target} is not one of your {noun}.")
         return found[0]
 
     def find_remote(self, identifier: int | None, reference: str) -> Remote | None:

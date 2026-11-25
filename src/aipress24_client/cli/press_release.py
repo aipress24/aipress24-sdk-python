@@ -182,7 +182,7 @@ def publish(
 
     Given an id or a URL, publish what is on the site, sending nothing.
     """
-    if _are_items(targets):
+    if are_items(targets):
         _change_items(ctx, targets, "publish", dry_run=dry_run, yes=yes)
         return
     documents = _select(ctx, [Path(target) for target in targets], only, limit)
@@ -411,7 +411,7 @@ def _conflict(plan: Plan) -> str:
 # --- items -----------------------------------------------------------------
 
 
-def _are_items(targets: Sequence[str]) -> bool:
+def are_items(targets: Sequence[str]) -> bool:
     kinds = {is_item(target) for target in targets}
     if len(kinds) > 1:
         raise UsageError("Give either documents, or ids and URLs, not both.")
@@ -422,7 +422,7 @@ def _items(ctx: Context, targets: Sequence[str]) -> list[dict[str, Any]]:
     """The items given, or those of the documents given."""
     if not targets:
         raise UsageError("Give at least one document, catalog, id or URL.")
-    if _are_items(targets):
+    if are_items(targets):
         return [ctx.site.find_item(target) for target in targets]
     items = []
     for document in _select(ctx, [Path(target) for target in targets]):

@@ -26,7 +26,7 @@ aipress24 <noun> <verb> [ARGUMENT...] [--option...]
 | `press-release` | a press release of yours | all the content verbs | 1 |
 | `article` | an article of yours (journalists) | all the content verbs | 2 |
 | `event` | an event of yours | all the content verbs | 2 |
-| `post` | a message of yours on the wall | `check` (1), then `status` `publish` `delete` `list` `show` (2) | 1–2 |
+| `post` | a message of yours on the wall | `check` `status` `publish` `delete` `list` `show` | 1 |
 | `catalog` | the local table of the documents to sort and classify | `create` `update` `status` | 1 |
 | `vocabulary` | the values a classification accepts | `list` `search` | 1 |
 | `publisher` | an organisation you may publish for | `list` | 1 |
@@ -126,6 +126,12 @@ A type can be changed, but a private message is never read, even when a line nam
 
 Links are written in full, mentions as `@name@server`, and the declared language is ignored, as it is often wrong. Only the files of public messages and their images are opened: not the likes, bookmarks, direct messages, deleted messages or addresses. Shortened links (`bit.ly`, `buff.ly`…) are kept as they are.
 
+## Posts
+
+A post has no draft and cannot be modified, so `post` has neither `draft` nor `unpublish`, and `publish` takes catalogs only. It answers `published`, `unchanged`, `deleted` (it was sent from here, and is not on the site any more; `--recreate` sends it again) or `different` (delete it, then publish it again). A post is sent with its images in one request, at its own date, and shows where it was first published.
+
+`post delete catalog.csv` undoes an import, and takes `--only` and `--limit`. The site allows 50 new posts and 1000 imported ones in 24 hours: beyond, the command stops, and the same one does the rest the next day. Posting needs the `write:social` scope, and `read:self`.
+
 ## Sending
 
 Everything is read and checked before the first write. If a document is invalid, nothing is sent; `--skip-invalid` sends the others. Then each document is sent on its own: a failure does not stop the next ones, except a refused token, which stops everything. Running the command again does what is left.
@@ -201,6 +207,6 @@ They are accepted anywhere on the line. The token is never an option, as it woul
 
 ## Phases
 
-1. `auth`, `publisher`, `vocabulary`, `catalog`; `press-release` with `check`, `status`, `draft`, `publish`, `unpublish`, `delete`, `list`, `show`; Markdown and HTML. Needs the API with `external_ref`, `published_at`, `/me/publishers` and `_links.page` deployed.
-2. `post`, once the site shows old messages and the API takes them; `article` and `event`, once the API gives them `external_ref`, images and their vocabularies; `press-release new`.
+1. `auth`, `publisher`, `vocabulary`, `catalog`; `press-release` with `check`, `status`, `draft`, `publish`, `unpublish`, `delete`, `list`, `show`; Markdown and HTML. Needs the API with `external_ref`, `published_at`, `/me/publishers` and `_links.page` deployed. `post`, with `/me/posts` deployed.
+2. `article` and `event`, once the API gives them `external_ref`, images and their vocabularies; `press-release new`.
 3. Word and PDF, then the read-only nouns.

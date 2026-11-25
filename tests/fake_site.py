@@ -41,6 +41,7 @@ class FakeSite(Client):
         self.allowed = [{"id": OWN, "name": "Acme"}, {"id": 2, "name": "Client"}]
         self.fail: dict[str, Exception] = {}
         self.calls: list[str] = []
+        self.wall: dict[int, dict[str, Any]] = {}
         self.next_id = 100
 
     def called(self, method: str) -> None:
@@ -76,6 +77,9 @@ class FakeSite(Client):
         return VOCABULARIES
 
     def iter(self, collection, limit=50):
+        if collection == "me/posts":
+            self.called("posts")
+            return iter(list(self.wall.values()))
         return iter([self.show(each) for each in self.releases])
 
     def get_one(self, collection, identifier):
@@ -119,7 +123,27 @@ class FakeSite(Client):
 
     def delete(self, collection, identifier):
         self.called("delete")
-        del self.releases[identifier]
+        del (self.wall if collection == "me/posts" else self.releases)[identifier]
+
+    def create_post(self, text, *, published_at=None, external_ref=None, images=()):
+        self.called("create_post")
+        if any(post["external_ref"] == external_ref for post in self.wall.values()):
+            raise ApiError(409, {"message": "already used"})
+        self.next_id += 1
+        self.wall[self.next_id] = {
+            "id": self.next_id,
+            "text": text.strip(),
+            "published_at": published_at,
+            "external_ref": external_ref,
+            "like_count": 0,
+            "images": [
+                {"sha256": hashlib.sha256(content).hexdigest(), "caption": caption}
+                for _, content, caption in images
+            ],
+            "_links": {"page": {"href": f"/swork/posts/x{self.next_id}"}},
+        }
+        self.called("created_post")
+        return self.wall[self.next_id]
 
     def press_release_images(self, identifier):
         self.get(identifier)

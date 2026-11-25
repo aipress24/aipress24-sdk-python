@@ -14,6 +14,8 @@ from .document import MAX_IMAGE_SIZE, Document, Image, is_image, published_at
 from .errors import CliError
 
 BARE = "no text and no image, mentions aside"
+MAX_IMAGES = 12
+MAX_TEXT_LENGTH = 10_000
 _TITLE_LENGTH = 100
 _MENTION = re.compile(r"@\S+")
 
@@ -42,6 +44,10 @@ def load_message(
             warnings.append(f"not an image, not sent: {image.name}")
         else:
             images.append(Image(image.name, content, image.caption, ""))
+    if len(images) > MAX_IMAGES:
+        problems.append(f"{len(images)} images, the limit is {MAX_IMAGES}")
+    if len(message.text) > MAX_TEXT_LENGTH:
+        problems.append(f"over {MAX_TEXT_LENGTH} characters")
     if not images and is_bare(message):
         problems.append(BARE)
     reference = overrides.get("reference", message.url)

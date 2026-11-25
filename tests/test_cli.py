@@ -51,7 +51,10 @@ def test_a_wrong_command_line(
         ["auth", "login"],
         ["auth", "logout"],
         ["auth", "status"],
-        ["post", "check"],
+        *(
+            ["post", verb]
+            for verb in ["check", "status", "publish", "delete", "list", "show"]
+        ),
         *(
             ["press-release", verb]
             for verb in [

@@ -19,6 +19,7 @@ from ._generated import (
     BusinessWall,
     Event,
     Member,
+    MyPost,
     Organisation,
     PressRelease,
     PressReleaseImage,
@@ -288,7 +289,8 @@ class Client:
             _images_path(identifier),
             method="POST",
             multipart=_encode_multipart(
-                {"caption": caption, "copyright": copyright}, filename, content
+                [("caption", caption), ("copyright", copyright)],
+                [("image", filename, content)],
             ),
         )
         return cast("PressReleaseImage", body)
@@ -297,29 +299,58 @@ class Client:
         """Remove an image from the carousel of one of your press releases."""
         self._request(f"{_images_path(identifier)}/{image_id}", method="DELETE")
 
+    # --- wall posts -------------------------------------------------------
+
+    def my_posts(self) -> Iterator[MyPost]:
+        """Iterate over your own posts on the wall."""
+        return cast("Iterator[MyPost]", self.iter("me/posts", limit=100))
+
+    def create_post(
+        self,
+        text: str,
+        *,
+        published_at: str | None = None,
+        external_ref: str | None = None,
+        images: Sequence[tuple[str, bytes, str]] = (),
+    ) -> MyPost:
+        """Post a message on the wall; images are (file name, content, caption).
+
+        ``published_at`` and ``external_ref`` are for a message first published
+        elsewhere. Needs the ``write:social`` scope.
+        """
+        fields = [("text", text), *(("captions", image[2]) for image in images)]
+        if published_at is not None:
+            fields.append(("published_at", published_at))
+        if external_ref is not None:
+            fields.append(("external_ref", external_ref))
+        files = [("images", name, content) for name, content, _ in images]
+        form = _encode_multipart(fields, files)
+        return cast("MyPost", self._request("me/posts", method="POST", multipart=form))
+
 
 def _images_path(identifier: int) -> str:
     return f"me/press-releases/{identifier}/images"
 
 
 def _encode_multipart(
-    fields: dict[str, str], filename: str, content: bytes
+    fields: Sequence[tuple[str, str]], files: Sequence[tuple[str, str, bytes]]
 ) -> tuple[str, bytes]:
-    """Encode a form with one ``image`` file, as ``(content type, body)``."""
+    """Encode a form as ``(content type, body)``; files are (field, name, content)."""
     boundary = uuid.uuid4().hex
-    parts = [
+    body = b"".join(
         f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n'
-        f"{value}\r\n"
-        for name, value in fields.items()
-    ]
-    # Escaped as browsers do, so that a filename cannot add headers.
-    safe = filename.replace('"', "%22").replace("\r", "%0D").replace("\n", "%0A")
-    parts.append(
-        f'--{boundary}\r\nContent-Disposition: form-data; name="image"; '
-        f'filename="{safe}"\r\nContent-Type: application/octet-stream\r\n\r\n'
+        f"{value}\r\n".encode()
+        for name, value in fields
     )
-    head = "".join(parts).encode()
+    for field, filename, content in files:
+        # Escaped as browsers do, so that a filename cannot add headers.
+        safe = filename.replace('"', "%22").replace("\r", "%0D").replace("\n", "%0A")
+        head = (
+            f'--{boundary}\r\nContent-Disposition: form-data; name="{field}"; '
+            f'filename="{safe}"\r\nContent-Type: application/octet-stream\r\n\r\n'
+        )
+        body += head.encode() + content + b"\r\n"
     return (
         f"multipart/form-data; boundary={boundary}",
-        head + content + f"\r\n--{boundary}--\r\n".encode(),
+        body + f"--{boundary}--\r\n".encode(),
     )

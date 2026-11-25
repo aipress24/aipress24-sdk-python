@@ -38,8 +38,8 @@ class Entry:
 class State:
     """The entries of a folder, for one site, by reference."""
 
-    def __init__(self, home: Path, site: str) -> None:
-        self._path = home / FOLDER / "press-releases.json"
+    def __init__(self, home: Path, site: str, kind: str = "press-release") -> None:
+        self._path = home / FOLDER / f"{kind}s.json"
         self._site = site
         try:
             text = self._path.read_text(encoding="utf-8")

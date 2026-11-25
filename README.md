@@ -15,11 +15,11 @@ uv tool install "aipress24-client[cli] @ git+https://github.com/aipress24/aipres
 
 ## Authentication
 
-The API is authenticated with a **bearer token**. Ask an AIpress24 administrator to issue one (they run `flask api-token issue --email you@example.com`). A token carries scopes — `read:content`, `read:organisations`, `read:directory`, `read:self` (your own `/me` data) and `write:content` (author & publish your own content) — and can be revoked at any time.
+The API is authenticated with a **bearer token**. Ask an AIpress24 administrator to issue one (they run `flask api-token issue --email you@example.com`). A token carries scopes — `read:content`, `read:organisations`, `read:directory`, `read:self` (your own `/me` data), `write:content` (author & publish your own content) and `write:social` (post on the wall) — and can be revoked at any time.
 
 ## Publishing existing press releases
 
-Commands are `aipress24 <noun> <verb>`. The [design](docs/cli.md) defines them all; only `press-release` contents are sent so far, and the archives of Mastodon, Twitter and Bluesky accounts can be sorted (`catalog create archive.zip repo.car`, `post check`).
+Commands are `aipress24 <noun> <verb>`. The [design](docs/cli.md) defines them all; `press-release` and `post` contents are sent so far. Messages come from the archive of a Mastodon, Twitter or Bluesky account: `catalog create archive.zip repo.car -o posts.csv`, then `post check`, `post publish` and, to undo, `post delete`.
 
 ```bash
 aipress24 auth login                                  # or set AIPRESS24_TOKEN
@@ -62,7 +62,7 @@ images:
 Le texte du communiqué, en **Markdown**.
 ```
 
-The token needs `read:self` and `write:content`. `--site` or `AIPRESS24_SITE` choose another site than `https://aipress24.com`, and `--json` prints results for programs. [`examples/abilian_news.py`](examples/abilian_news.py) converts a whole site.
+The token needs `read:self`, and `write:content` for press releases or `write:social` for posts. `--site` or `AIPRESS24_SITE` choose another site than `https://aipress24.com`, and `--json` prints results for programs. [`examples/abilian_news.py`](examples/abilian_news.py) converts a whole site.
 
 ## Usage from Python
 
@@ -142,6 +142,7 @@ Publishing also requires `genre`, `section`, `topic` and `sector`, with values f
 
 | Method | Endpoint | Scope |
 |---|---|---|
+| `my_posts()` / `create_post(text, …)` | `GET` / `POST /me/posts` | `read:self` / `write:social` |
 | `publishers()` | `GET /me/publishers` | `read:self` |
 | `press_release_vocabularies()` | `GET /vocabularies/press-releases` | any |
 | `press_release_images(id)` | `GET /me/press-releases/{id}/images` | `read:self` |
