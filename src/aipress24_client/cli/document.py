@@ -211,8 +211,8 @@ class _Reader:
             self.problems.append(f"reference: over {MAX_REFERENCE} characters")
         else:
             fields["external_ref"] = reference
-        self.read_date(fields, "published_at", self.published)
-        self.read_date(fields, "embargoed_until", self.moment)
+        self.read_date(fields, "published_at", published_at)
+        self.read_date(fields, "embargoed_until", to_moment)
 
         body = clean(root, reference)
         self.warnings.extend(body.warnings)
@@ -252,29 +252,6 @@ class _Reader:
             fields[key] = convert(value).isoformat()
         except ValueError as error:
             self.problems.append(f"{key}: {error}")
-
-    def published(self, value: object) -> datetime:
-        moment = self.moment(value, _DATE_TIME)
-        if moment.astimezone(UTC).year < FIRST_YEAR:
-            msg = f"{value} is before {FIRST_YEAR}"
-            raise ValueError(msg)
-        if moment > datetime.now(UTC):
-            msg = f"{value} is in the future"
-            raise ValueError(msg)
-        return moment
-
-    def moment(self, value: object, default: time | None = None) -> datetime:
-        if isinstance(value, str):
-            value = _parse_date(value.strip())
-        if isinstance(value, datetime):
-            if value.tzinfo:
-                return value
-        elif isinstance(value, date) and default:
-            return datetime.combine(value, default)
-        example = "2026-12-01T08:00:00+01:00"
-        expected = f"2026-12-01 or {example}" if default else example
-        msg = f"{value} should be like {expected}"
-        raise ValueError(msg)
 
     def images(self, found: tuple[FoundImage, ...]) -> tuple[Image, ...]:
         images: dict[Path, Image] = {}
@@ -328,10 +305,35 @@ class _Reader:
             self.problems.append(f"image {name}: not found")
         elif path.stat().st_size >= MAX_IMAGE_SIZE:
             self.problems.append(f"image {name}: too large, the limit is 4 MB")
-        elif not _is_image(content := path.read_bytes()):
+        elif not is_image(content := path.read_bytes()):
             self.problems.append(f"image {name}: not a JPEG, PNG, GIF, WebP or AVIF")
         else:
             images[path] = Image(path.name, content, caption.strip(), copyright.strip())
+
+
+def published_at(value: object) -> datetime:
+    moment = to_moment(value, _DATE_TIME)
+    if moment.astimezone(UTC).year < FIRST_YEAR:
+        msg = f"{value} is before {FIRST_YEAR}"
+        raise ValueError(msg)
+    if moment > datetime.now(UTC):
+        msg = f"{value} is in the future"
+        raise ValueError(msg)
+    return moment
+
+
+def to_moment(value: object, default: time | None = None) -> datetime:
+    if isinstance(value, str):
+        value = _parse_date(value.strip())
+    if isinstance(value, datetime):
+        if value.tzinfo:
+            return value
+    elif isinstance(value, date) and default:
+        return datetime.combine(value, default)
+    example = "2026-12-01T08:00:00+01:00"
+    expected = f"2026-12-01 or {example}" if default else example
+    msg = f"{value} should be like {expected}"
+    raise ValueError(msg)
 
 
 def _parse_date(text: str) -> date | str:
@@ -345,7 +347,7 @@ def _parse_date(text: str) -> date | str:
         return text
 
 
-def _is_image(content: bytes) -> bool:
+def is_image(content: bytes) -> bool:
     return (
         content.startswith((b"\xff\xd8\xff", b"\x89PNG\r\n\x1a\n", b"GIF8"))
         or (content[:4] == b"RIFF" and content[8:12] == b"WEBP")

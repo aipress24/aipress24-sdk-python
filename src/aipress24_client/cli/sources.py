@@ -15,6 +15,7 @@ from .catalog import Row, read_rows
 from .document import SUFFIXES, Document, load_document
 from .errors import CliError
 from .html import is_url
+from .message_document import load_message
 
 
 @dataclass
@@ -62,6 +63,8 @@ def _read_source(
 
 def load_row(catalog: Path, row: Row) -> Document:
     home = catalog.parent
+    if row.key:
+        return load_message(row.source, row.key, home=home, overrides=row.values)
     return load_document(row.source, home=home, overrides=row.values)
 
 

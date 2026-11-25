@@ -8,6 +8,7 @@ from __future__ import annotations
 import getpass
 import sys
 import urllib.error
+from collections import Counter
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Annotated, Literal
@@ -15,7 +16,7 @@ from typing import Annotated, Literal
 from cyclopts import App, CycloptsError, Parameter
 
 from .. import DEFAULT_BASE_URL, ApiError, __version__
-from . import catalog, press_release
+from . import catalog, post, press_release
 from .access import find_token, forget_token, store_token
 from .context import Context, Ctx
 from .document import CLASSIFICATION
@@ -37,7 +38,14 @@ catalog_app = App(name="catalog", help="The table in which documents are sorted.
 vocabulary_app = App(name="vocabulary", help="The values a classification accepts.")
 publisher_app = App(name="publisher", help="The organisations you may publish for.")
 auth_app = App(name="auth", help="Your access to the site.")
-for noun in (press_release.app, catalog_app, vocabulary_app, publisher_app, auth_app):
+for noun in (
+    press_release.app,
+    post.app,
+    catalog_app,
+    vocabulary_app,
+    publisher_app,
+    auth_app,
+):
     app.command(noun)
 
 
@@ -106,9 +114,7 @@ def catalog_create(
         The CSV file to write.
     """
     _require_paths(paths)
-    count = catalog.create(output, paths)
-    ctx.line(f"{output}: {count} documents", {"catalog": str(output), "added": count})
-    ctx.say(f"Give each one a type: {', '.join(catalog.TYPES)}.")
+    _report_listing(ctx, output, catalog.create(output, paths))
 
 
 @catalog_app.command(name="update")
@@ -123,8 +129,7 @@ def catalog_update(table: Path, /, *paths: Path, ctx: Ctx) -> None:
         Documents, or folders to look into.
     """
     _require_paths(paths)
-    count = catalog.update(table, paths)
-    ctx.line(f"{table}: {count} added", {"catalog": str(table), "added": count})
+    _report_listing(ctx, table, catalog.update(table, paths))
 
 
 @catalog_app.command(name="status")
@@ -144,6 +149,26 @@ def catalog_status(table: Path, /, *, ctx: Ctx) -> None:
                 reference=document.reference,
             )
     ctx.summary("documents")
+
+
+def _report_listing(ctx: Context, table: Path, listing: catalog.Listing) -> None:
+    count = len(listing.lines)
+    ctx.line(f"{table}: {count} added", {"catalog": str(table), "added": count})
+    types = Counter(line["type"] or "undecided" for line in listing.lines)
+    reasons = Counter(
+        line["note"].partition(" http")[0]
+        for line in listing.lines
+        if line["type"] == catalog.SKIP
+    )
+    for name, number in types.items():
+        ctx.say(f"  {number} {name}")
+    for name, number in reasons.items():
+        ctx.say(f"    {number} {name}")
+    if listing.ignored:
+        ignored = ", ".join(f"{n} {name}" for name, n in listing.ignored.items())
+        ctx.say(f"Never published: {ignored}.")
+    if types["undecided"]:
+        ctx.say(f"Give a type to the undecided ones: {', '.join(catalog.TYPES)}.")
 
 
 def _require_paths(paths: Sequence[Path]) -> None:

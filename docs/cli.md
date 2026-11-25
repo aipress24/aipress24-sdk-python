@@ -26,6 +26,7 @@ aipress24 <noun> <verb> [ARGUMENT...] [--option...]
 | `press-release` | a press release of yours | all the content verbs | 1 |
 | `article` | an article of yours (journalists) | all the content verbs | 2 |
 | `event` | an event of yours | all the content verbs | 2 |
+| `post` | a message of yours on the wall | `check` (1), then `status` `publish` `delete` `list` `show` (2) | 1–2 |
 | `catalog` | the local table of the documents to sort and classify | `create` `update` `status` | 1 |
 | `vocabulary` | the values a classification accepts | `list` `search` | 1 |
 | `publisher` | an organisation you may publish for | `list` | 1 |
@@ -93,8 +94,8 @@ It is a CSV file, one line for each document:
 
 | Column | Meaning |
 |---|---|
-| `source` | path, relative to the catalog |
-| `type` | `press-release`, `article`, `event` or `skip`; empty while undecided |
+| `source` | path, relative to the catalog; `archive.zip#id` for a message of an archive |
+| `type` | `press-release`, `article`, `event`, `post` or `skip`; empty while undecided |
 | `reference` `title` `published_at` `publisher` `genre` `section` `topic` `sector` | as in a document |
 | `note` | free text, never sent |
 
@@ -104,6 +105,24 @@ It is a CSV file, one line for each document:
 - The catalog holds decisions, never results: no id, status or URL is written to it. `catalog status` shows those, for all types.
 
 Options of content verbs on a catalog: `--only PATTERN` (repeatable, matches `source` or `reference`) and `--limit N`.
+
+## Archives of social networks
+
+`catalog create` also takes the archive of an account, when it is named: Mastodon (`.zip`) or Bluesky (`.car`). Each message is a line, of type `post` or, for a reason given in `note`, `skip`:
+
+| Message | Line |
+|---|---|
+| original and public, with the rest of its thread | `post` |
+| reply to someone, or in the thread of someone else | `skip` |
+| begins with a mention (Mastodon): a reply whose parent was deleted | `skip` |
+| unlisted (Mastodon) | `skip` |
+| same text within 3 days as one already listed, from another network | `skip`, `same as URL` |
+| nothing to read and no image | `skip` |
+| private, or someone else's (boost, repost) | no line, and it cannot be asked for |
+
+A type can be changed, but a private message is never read, even when a line names it. Archives are compared in the order they are given, so give first the one that holds images: Bluesky's does not. The reference of a message is its URL, so a newer archive of the same account only adds what is new. The `title` column is the beginning of the text, to recognise it, and is not sent.
+
+Links are written in full, mentions as `@name@server`, and the declared language is ignored, as it is often wrong. Likes, bookmarks, follows and blocks are not read.
 
 ## Sending
 
@@ -181,5 +200,5 @@ They are accepted anywhere on the line. The token is never an option, as it woul
 ## Phases
 
 1. `auth`, `publisher`, `vocabulary`, `catalog`; `press-release` with `check`, `status`, `draft`, `publish`, `unpublish`, `delete`, `list`, `show`; Markdown and HTML. Needs the API with `external_ref`, `published_at`, `/me/publishers` and `_links.page` deployed.
-2. `article` and `event`, once the API gives them `external_ref`, images and their vocabularies; `press-release new`.
+2. `post`, once the site shows old messages and the API takes them; `article` and `event`, once the API gives them `external_ref`, images and their vocabularies; `press-release new`.
 3. Word and PDF, then the read-only nouns.
