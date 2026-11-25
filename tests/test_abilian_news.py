@@ -1,16 +1,17 @@
 # Copyright (c) 2026, Abilian SAS & TCA
 #
 # SPDX-License-Identifier: Apache-2.0
-"""Unit tests for the conversion of the abilian.com news."""
+"""The conversion of the abilian.com news."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 import abilian_news
-import pytest
+from conftest import PNG
 
-from aipress24_client.cli.release import load_release
+from aipress24_client.cli.catalog import read_rows
+from aipress24_client.cli.sources import load_row
 
 NEWS = """title: [R&D] Un: titre
 ---
@@ -33,34 +34,37 @@ sur deux lignes.
 """
 
 
-def test_a_news_becomes_a_release(tmp_path: Path) -> None:
-    source = tmp_path / "site" / "content" / "fr" / "news" / "x"
+def test_a_news_becomes_a_document(tmp_path: Path) -> None:
+    site = tmp_path / "site"
+    source = site / "content" / "fr" / "news" / "wendelin-projet-big-data"
     source.mkdir(parents=True)
     (source / "contents.lr").write_text(NEWS, encoding="utf-8")
     for name in ("illustrations/abilian.png", "images/a.png"):
-        image = tmp_path / "site" / "assets" / "static" / name
+        image = site / "assets" / "static" / name
         image.parent.mkdir(parents=True)
-        image.write_bytes(b"png")
+        image.write_bytes(PNG)
 
-    folder = tmp_path / "x"
-    classification = abilian_news.Classification("g", "s", "t")
-    abilian_news.convert(tmp_path / "site", "x", classification, folder)
-    release = load_release(folder)
+    output = tmp_path / "output"
+    abilian_news.main(site, output)
+    catalog = output / "catalog.csv"
+    (row,) = read_rows(catalog)
+    document = load_row(catalog, row)
 
-    assert release.missing_to_publish() == []
-    assert release.fields["titre"] == "Un: titre"
-    assert release.fields["chapo"] == "Un chapo sur deux lignes."
-    html = release.fields["contenu"]
-    assert "publié le 1er février 2025" in html
+    assert row.type == "press-release"
+    assert document.problems == ()
+    assert document.title == "Un: titre"
+    assert document.fields["chapo"] == "Un chapo sur deux lignes."
+    assert document.fields["genre"] == "Business / Financement, levée de fonds"
+    assert document.fields["published_at"] == "2025-02-01T06:00:00+01:00"
+    html = document.fields["contenu"]
     assert 'href="https://abilian.com/fr/x/"' in html
     assert html.count("<hr") == 2
     assert "<h2" not in html
-    assert [(image.name, image.caption) for image in release.images] == [
+    assert [(image.name, image.caption) for image in document.images] == [
         ("abilian.png", ""),
         ("a.png", "Un schéma"),
     ]
 
-
-def test_html_which_is_not_converted_is_refused() -> None:
-    with pytest.raises(ValueError, match="iframe"):
-        abilian_news.clean_markdown("<iframe src='x'></iframe>")
+    catalog.write_text("kept")
+    abilian_news.main(site, output)
+    assert catalog.read_text() == "kept"

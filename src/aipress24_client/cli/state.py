@@ -1,41 +1,81 @@
 # Copyright (c) 2026, Abilian SAS & TCA
 #
 # SPDX-License-Identifier: Apache-2.0
-"""The release a folder was pushed to, remembered next to its files."""
+"""What was sent from a folder, and what the site then held.
+
+It is a cache: without it, documents are found again by their reference.
+"""
 
 from __future__ import annotations
 
+import hashlib
 import json
-from dataclasses import dataclass
+import os
+from collections.abc import Mapping
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import Any
 
 from .errors import CliError
 
-STATE_FILE = ".aipress24.json"
+FOLDER = ".aipress24"
 
 
 @dataclass(frozen=True)
+class Entry:
+    """One document: digests by field, of what was sent and of what resulted."""
+
+    id: int | None = None
+    sent: Mapping[str, str] = field(default_factory=dict)
+    site: Mapping[str, str] = field(default_factory=dict)
+
+    @property
+    def is_pending(self) -> bool:
+        """Was the last sending interrupted?"""
+        return not self.sent
+
+
 class State:
-    """The release a folder was pushed to, and its date after the push."""
+    """The entries of a folder, for one site, by reference."""
 
-    base_url: str
-    id: int
-    modified_at: str | None = None
+    def __init__(self, home: Path, site: str) -> None:
+        self._path = home / FOLDER / "press-releases.json"
+        self._site = site
+        try:
+            text = self._path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            self._all: dict[str, dict[str, Any]] = {}
+            return
+        try:
+            self._all = json.loads(text)
+            for entry in self._all.get(site, {}).values():
+                Entry(**entry)
+        except (AttributeError, TypeError, ValueError) as error:
+            raise CliError(f"{self._path} is damaged, remove it: {error}") from error
+
+    def get(self, reference: str) -> Entry | None:
+        entry = self._all.get(self._site, {}).get(reference)
+        return Entry(**entry) if entry else None
+
+    def save(self, reference: str, entry: Entry) -> None:
+        self._all.setdefault(self._site, {})[reference] = asdict(entry)
+        self._path.parent.mkdir(exist_ok=True)
+        temporary = self._path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(self._all, indent=1) + "\n", encoding="utf-8")
+        os.replace(temporary, self._path)
 
 
-def load_state(folder: Path, base_url: str) -> State | None:
-    path = folder / STATE_FILE
-    if not path.exists():
-        return None
-    try:
-        state = State(**json.loads(path.read_text(encoding="utf-8")))
-    except (TypeError, ValueError) as error:
-        raise CliError(f"{path} is damaged: {error}") from error
-    if state.base_url != base_url:
-        raise CliError(f"{folder} was pushed to {state.base_url}, not to {base_url}.")
-    return state
+def digests(values: Mapping[str, Any]) -> dict[str, str]:
+    return {
+        key: hashlib.sha256(
+            json.dumps(value, sort_keys=True, ensure_ascii=False).encode()
+        ).hexdigest()[:16]
+        for key, value in values.items()
+    }
 
 
-def save_state(folder: Path, state: State) -> None:
-    path = folder / STATE_FILE
-    path.write_text(json.dumps(vars(state), indent=2) + "\n", encoding="utf-8")
+def changed(values: Mapping[str, Any], before: Mapping[str, str]) -> tuple[str, ...]:
+    """The fields of ``values`` that are not as before."""
+    return tuple(
+        key for key, digest in digests(values).items() if before.get(key) != digest
+    )

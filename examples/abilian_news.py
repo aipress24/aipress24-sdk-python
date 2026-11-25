@@ -6,19 +6,20 @@
 # requires-python = ">=3.11"
 # dependencies = ["cyclopts>=5.5,<6", "pyyaml>=6"]
 # ///
-"""Convert the press releases of abilian.com into ``aipress24 push`` folders.
+"""Convert the news of abilian.com into documents, and list them in a catalog.
 
-    uv run examples/abilian_news.py ../../web/abilian.com ../abilian-releases
+    uv run examples/abilian_news.py ../../web/abilian.com ../abilian-news
+    uv run aipress24 press-release check ../abilian-news/catalog.csv
 
-Running it again rewrites the texts and images, and keeps ``.aipress24.json``.
+Running it again rewrites the documents, but not the catalog.
 """
 
 from __future__ import annotations
 
+import csv
 import re
 import shutil
 from dataclasses import dataclass
-from datetime import date
 from pathlib import Path
 
 import cyclopts
@@ -26,20 +27,6 @@ import yaml
 
 SITE = "https://abilian.com"
 DEFAULT_ILLUSTRATION = "abilian.png"
-MONTHS = [
-    "janvier",
-    "février",
-    "mars",
-    "avril",
-    "mai",
-    "juin",
-    "juillet",
-    "août",
-    "septembre",
-    "octobre",
-    "novembre",
-    "décembre",
-]
 
 
 @dataclass(frozen=True)
@@ -109,52 +96,94 @@ RELEASES = {
     ),
 }
 
-_IMAGE = re.compile(r"!\[([^\]]*)\]\(([^)\s]+)\)")
-_HTML = re.compile(r"</?[a-z][^>]*>", re.IGNORECASE)
-_AUTOLINK = re.compile(r"<(https?://|mailto:)")
+COLUMNS = (
+    *("source", "type", "reference", "title", "published_at", "publisher"),
+    *("genre", "section", "topic", "sector", "note"),
+)
+
+_IMAGE = re.compile(r"""(!\[[^\]]*\]\(|<img[^>]*?src=")([^)\s"]+)""")
 
 
 def main(site: Path, output: Path, /) -> None:
-    """Convert the press releases.
+    """Convert the news.
 
     Parameters
     ----------
     site
         The Lektor project of abilian.com.
     output
-        Where to write one folder per press release.
+        Where to write one folder for each news, and the catalog.
     """
-    for slug, classification in RELEASES.items():
-        convert(site, slug, classification, output / slug)
-        print(output / slug)
+    rows = []
+    for source in sorted((site / "content" / "fr" / "news").glob("*/contents.lr")):
+        news = parse_lektor(source.read_text(encoding="utf-8"))
+        if "pub_date" in news:
+            slug = source.parent.name
+            convert(site, slug, news, output / slug)
+            rows.append(describe(slug, news))
+    catalog = output / "catalog.csv"
+    if not catalog.exists():
+        with catalog.open("w", encoding="utf-8-sig", newline="") as file:
+            writer = csv.DictWriter(file, COLUMNS, restval="")
+            writer.writeheader()
+            writer.writerows(rows)
+    print(f"{output}: {len(rows)} documents")
 
 
-def convert(
-    site: Path, slug: str, classification: Classification, folder: Path
-) -> None:
+def describe(slug: str, news: dict[str, str]) -> dict[str, str]:
+    """The line of a news in the catalog: only press releases have a type."""
+    line = {
+        "source": f"{slug}/document.md",
+        "reference": url_of(slug),
+        "title": title_of(news),
+        "published_at": news["pub_date"],
+    }
+    if slug in RELEASES:
+        line |= {"type": "press-release", **vars(RELEASES[slug])}
+    return line
+
+
+def convert(site: Path, slug: str, news: dict[str, str], folder: Path) -> None:
     source = site / "content" / "fr" / "news" / slug
-    news = parse_lektor((source / "contents.lr").read_text(encoding="utf-8"))
-    body, captions = extract_images(news["body"])
-    illustration = news.get("illustration", DEFAULT_ILLUSTRATION)
-    images = {f"/static/illustrations/{illustration}": "", **captions}
-
     folder.mkdir(parents=True, exist_ok=True)
+    illustrations = site / "assets" / "static" / "illustrations"
+    illustration = illustrations / news.get("illustration", DEFAULT_ILLUSTRATION)
+    if illustration.suffix == ".svg":
+        illustration = illustrations / DEFAULT_ILLUSTRATION
+    shutil.copyfile(illustration, folder / illustration.name)
+
+    def localize(match: re.Match[str]) -> str:
+        url = match[2]
+        path = site / "assets" / url[1:] if url.startswith("/") else source / url
+        if not path.is_file():
+            return match[0]
+        shutil.copyfile(path, folder / path.name)
+        return f"{match[1]}{path.name}"
+
     matter = {
-        "titre": re.sub(r"^\[[^\]]*\]\s*", "", news["title"]),
-        "chapo": plain_text(news["description"]),
-        **vars(classification),
+        "title": title_of(news),
+        "summary": plain_text(news.get("description", "")),
+        "reference": url_of(slug),
+        "published_at": news["pub_date"],
         "language": "fr",
-        "pays_zip_ville": "FRA",
-        "images": [
-            copy_image(site, source, url, folder) | ({"caption": text} if text else {})
-            for url, text in images.items()
-        ],
+        "country": "FRA",
+        "images": [illustration.name],
     }
     header = yaml.safe_dump(matter, allow_unicode=True, sort_keys=False, width=10**6)
-    note = origin(date.fromisoformat(news["pub_date"]), slug)
-    (folder / "release.md").write_text(
-        f"---\n{header}---\n\n{note}\n\n{clean_markdown(body)}\n", encoding="utf-8"
+    body = _IMAGE.sub(localize, news.get("body", "").replace("\ufffc", ""))
+    # Blank lines around, as a line before '---' would become a title.
+    body = re.sub(r"<hr\s*/?>", "\n\n---\n\n", body)
+    (folder / "document.md").write_text(
+        f"---\n{header}---\n\n{body.strip()}\n", encoding="utf-8"
     )
+
+
+def url_of(slug: str) -> str:
+    return f"{SITE}/fr/news/{slug}/"
+
+
+def title_of(news: dict[str, str]) -> str:
+    return re.sub(r"^\[[^\]]*\]\s*", "", news["title"])
 
 
 def parse_lektor(text: str) -> dict[str, str]:
@@ -173,39 +202,8 @@ def parse_lektor(text: str) -> dict[str, str]:
     return fields
 
 
-def extract_images(body: str) -> tuple[str, dict[str, str]]:
-    """Take the images out of the text, as ``{url: caption}``."""
-    images = {url: text for text, url in _IMAGE.findall(body)}
-    return _IMAGE.sub("", body), images
-
-
-def clean_markdown(body: str) -> str:
-    body = body.replace("￼", "")  # left by a copy and paste
-    body = re.sub(r"<br\s*/?>", "", body)
-    # Blank lines around, as a line before it would become a title.
-    body = re.sub(r"<hr\s*/?>", "\n\n---\n\n", body)
-    if html := _HTML.findall(_AUTOLINK.sub("", body)):
-        msg = f"HTML which is not converted: {html}"
-        raise ValueError(msg)
-    body = re.sub(r"\]\(/", f"]({SITE}/", body)
-    return re.sub(r"\n\s*\n+", "\n\n", body).strip()
-
-
 def plain_text(text: str) -> str:
     return " ".join(text.replace("*", "").split())
-
-
-def origin(published: date, slug: str) -> str:
-    """Tell the reader the date of the release, which AIpress24 cannot hold."""
-    day = "1er" if published.day == 1 else published.day
-    when = f"{day} {MONTHS[published.month - 1]} {published.year}"
-    return f"*Communiqué [publié le {when}]({SITE}/fr/news/{slug}/) par Abilian.*"
-
-
-def copy_image(site: Path, source: Path, url: str, folder: Path) -> dict[str, str]:
-    path = site / "assets" / url.lstrip("/") if url.startswith("/") else source / url
-    shutil.copyfile(path, folder / path.name)
-    return {"file": path.name}
 
 
 if __name__ == "__main__":

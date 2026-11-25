@@ -29,6 +29,7 @@ from ._generated import (
     PressRelease,
     PressReleaseImage,
     PressReleaseVocabularies,
+    Publisher,
     SelfProfile,
 )
 from .client import DEFAULT_BASE_URL, ApiError, Client, Page
@@ -47,6 +48,7 @@ __all__ = [
     "PressRelease",
     "PressReleaseImage",
     "PressReleaseVocabularies",
+    "Publisher",
     "SelfProfile",
 ]
 

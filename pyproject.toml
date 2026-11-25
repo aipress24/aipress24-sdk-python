@@ -11,7 +11,13 @@ license-files = ["LICENSE"]
 dependencies = []
 
 [project.optional-dependencies]
-cli = ["cyclopts>=5.5,<6", "markdown-it-py>=3", "pyyaml>=6"]
+cli = [
+    "beautifulsoup4>=4.13",
+    "cyclopts>=5.5,<6",
+    "markdown-it-py>=3",
+    "pyyaml>=6",
+    "tzdata; sys_platform == 'win32'",
+]
 
 [project.scripts]
 aipress24 = "aipress24_client.cli:main"
@@ -22,6 +28,7 @@ Source = "https://github.com/aipress24/aipress24-sdk-python"
 [dependency-groups]
 dev = [
     # Those of the cli extra:
+    "beautifulsoup4>=4.13",
     "cyclopts>=5.5,<6",
     "markdown-it-py>=3",
     "pyyaml>=6",
@@ -43,7 +50,7 @@ packages = ["src/aipress24_client"]
 include = ["src", "tests", "scripts", "examples", "openapi.json"]
 
 [tool.pytest.ini_options]
-pythonpath = ["src", "scripts", "examples"]
+pythonpath = ["src", "scripts", "examples", "tests"]
 testpaths = ["tests"]
 
 [tool.ruff]
@@ -60,4 +67,4 @@ ignore = ["E501"]
 "tests/*" = ["S101", "S105", "S106"]
 
 [tool.ty.environment]
-root = ["src", "scripts", "examples"]
+root = ["src", "scripts", "examples", "tests"]

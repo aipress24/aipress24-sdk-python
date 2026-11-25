@@ -23,6 +23,7 @@ from ._generated import (
     PressRelease,
     PressReleaseImage,
     PressReleaseVocabularies,
+    Publisher,
     SelfProfile,
 )
 
@@ -233,6 +234,10 @@ class Client:
     def me(self) -> SelfProfile:
         """Fetch the authenticated user's own profile (``GET /me``)."""
         return cast("SelfProfile", self._request(f"{API_PREFIX}/me"))
+
+    def publishers(self) -> Sequence[Publisher]:
+        """List the organisations you may publish for, your own one first."""
+        return self._request("me/publishers")["items"]
 
     def create(self, collection: str, data: dict[str, Any]) -> dict[str, Any]:
         """Create a resource (``POST /{collection}``)."""

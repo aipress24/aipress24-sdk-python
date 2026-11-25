@@ -1,6 +1,6 @@
 # AIpress24 Python client
 
-A dependency-free Python client for the AIpress24 public API (`/api/v1`), and an `aipress24` command that creates press releases from folders.
+A dependency-free Python client for the AIpress24 public API (`/api/v1`), and an `aipress24` command that publishes existing press releases in bulk.
 
 ## Install
 
@@ -17,44 +17,52 @@ uv tool install "aipress24-client[cli] @ git+https://github.com/aipress24/aipres
 
 The API is authenticated with a **bearer token**. Ask an AIpress24 administrator to issue one (they run `flask api-token issue --email you@example.com`). A token carries scopes — `read:content`, `read:organisations`, `read:directory`, `read:self` (your own `/me` data) and `write:content` (author & publish your own content) — and can be revoked at any time.
 
-## Press releases from a folder
+## Publishing existing press releases
 
-A folder holds one Markdown file and its images:
+Commands are `aipress24 <noun> <verb>`. The [design](docs/cli.md) defines them all; only `press-release` contents are handled so far.
+
+```bash
+aipress24 auth login                                  # or set AIPRESS24_TOKEN
+aipress24 catalog create content/news -o news.csv     # list the documents in a table
+aipress24 vocabulary search cloud                     # look for classification values
+```
+
+In the table, give a `type` to each line (`press-release`, or `skip`) and fill in `reference`, `genre`, `section`, `topic` and `sector`. Then:
+
+```bash
+aipress24 press-release check news.csv                # every problem, sending nothing
+aipress24 press-release draft news.csv                # have them on the site, as drafts
+aipress24 press-release publish news.csv              # have them public, after a confirmation
+aipress24 press-release status news.csv
+```
+
+Each command states a result: run again, it does what is left. What was corrected on the site is kept, what was deleted there is not created again, and what changed on both sides is reported as a conflict.
+
+A document is a Markdown or an HTML file, and can also be given alone, without a table:
 
 ```markdown
 ---
-titre: "Acme lance le Widget"
-chapo: Un widget plus léger.
+title: "Acme lance le Widget"
+reference: https://acme.example/news/widget/   # prevents duplicates
+published_at: 2025-01-23                       # from 2000 on; now, if absent
+summary: Un widget plus léger.
 genre: …
 section: …
 topic: …
 sector: …
-pays_zip_ville: FRA
-pays_zip_ville_detail: FRA / 75001 Paris
+publisher: Acme                                # your own organisation, if absent
+country: FRA
+city: FRA / 75001 Paris
 images:
-  - file: cover.jpg      # the first one is the cover
+  - file: cover.jpg                            # the first one is the cover
     caption: Le Widget
     copyright: Acme
-  - file: factory.png
 ---
 
 Le texte du communiqué, en **Markdown**.
 ```
 
-Only `titre` is required for a draft; publishing also needs a text, `genre`, `section`, `topic` and `sector`. The other keys are `geo_localisation`, `language`, `address`, `publisher_id` (to publish for a client organisation) and `embargoed_until` (a date with a time zone, before which publishing is refused; nothing is scheduled). Raw HTML and images in the text are not supported.
-
-```bash
-export AIPRESS24_TOKEN=a24_…          # or ~/.config/aipress24/token, in mode 600
-aipress24 values genre                # the accepted values: genre, section, topic, sector
-aipress24 check my-release            # validate, sending nothing about the release
-aipress24 push my-release             # create the draft, then update it
-aipress24 push --publish my-release   # …and publish it
-aipress24 status my-release
-```
-
-The token needs `read:self` and `write:content`. `push` writes `.aipress24.json` in the folder, to update the same release next time: keep it. Pushing a published release updates it in place. If the release was changed on the site since the last push, `push` stops; `--force` overwrites it, its images included. Removing a key from the front matter leaves its value on the site: write `chapo: ""` to clear it.
-
-Use `--base-url` or `AIPRESS24_URL` for another site than `https://aipress24.com`.
+The token needs `read:self` and `write:content`. `--site` or `AIPRESS24_SITE` choose another site than `https://aipress24.com`, and `--json` prints results for programs. [`examples/abilian_news.py`](examples/abilian_news.py) converts a whole site.
 
 ## Usage from Python
 
@@ -134,6 +142,7 @@ Publishing also requires `genre`, `section`, `topic` and `sector`, with values f
 
 | Method | Endpoint | Scope |
 |---|---|---|
+| `publishers()` | `GET /me/publishers` | `read:self` |
 | `press_release_vocabularies()` | `GET /vocabularies/press-releases` | any |
 | `press_release_images(id)` | `GET /me/press-releases/{id}/images` | `read:self` |
 | `add_press_release_image(id, content, filename, caption, copyright)` | `POST …/images` | `write:content` |
