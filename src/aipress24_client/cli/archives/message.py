@@ -5,21 +5,40 @@
 
 from __future__ import annotations
 
+import zipfile
 from collections import Counter
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 
 
 @dataclass(frozen=True)
 class Attachment:
-    """An image of a message; ``content`` is None if the archive lacks it."""
+    """An image of a message; ``member`` is empty if the archive lacks it."""
 
     name: str
     caption: str
     size: int = 0
-    content: bytes | None = None
+    path: Path | None = None
+    member: str = ""
+
+    @property
+    def is_present(self) -> bool:
+        return bool(self.member)
+
+    def read(self) -> bytes:
+        if self.path is None:
+            msg = f"{self.name} is not in the archive"
+            raise ValueError(msg)
+        return open_zip(self.path).read(self.member)
+
+
+@lru_cache(maxsize=4)
+def open_zip(path: Path) -> zipfile.ZipFile:
+    """Keep an archive open: listing thousands of files takes time."""
+    return zipfile.ZipFile(path)
 
 
 @dataclass(frozen=True)
@@ -33,6 +52,8 @@ class Message:
     images: tuple[Attachment, ...] = ()
     # Why it is not to be published by default, if so.
     reason: str = ""
+    # How many people liked or shared it, when the archive says so.
+    popularity: int | None = None
 
 
 @dataclass(frozen=True)
@@ -51,7 +72,7 @@ def join_thread(key: str, parts: list[Message]) -> Message:
     first = parts[0]
     text = "\n\n".join(part.text for part in parts if part.text)
     images = tuple(image for part in parts for image in part.images)
-    return Message(key, first.url, first.published, text, images, first.reason)
+    return replace(first, key=key, text=text, images=images)
 
 
 def oldest_first(messages: list[Message]) -> dict[str, Message]:

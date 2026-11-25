@@ -19,7 +19,7 @@ The API is authenticated with a **bearer token**. Ask an AIpress24 administrator
 
 ## Publishing existing press releases
 
-Commands are `aipress24 <noun> <verb>`. The [design](docs/cli.md) defines them all; only `press-release` contents are sent so far, and the archives of Mastodon and Bluesky accounts can be sorted (`catalog create archive.zip repo.car`, `post check`).
+Commands are `aipress24 <noun> <verb>`. The [design](docs/cli.md) defines them all; only `press-release` contents are sent so far, and the archives of Mastodon, Twitter and Bluesky accounts can be sorted (`catalog create archive.zip repo.car`, `post check`).
 
 ```bash
 aipress24 auth login                                  # or set AIPRESS24_TOKEN

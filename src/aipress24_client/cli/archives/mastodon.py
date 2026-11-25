@@ -10,7 +10,6 @@ archive also holds likes and bookmarks.
 from __future__ import annotations
 
 import json
-import zipfile
 from collections import Counter
 from collections.abc import Iterable, Mapping
 from dataclasses import replace
@@ -21,9 +20,15 @@ from urllib.parse import urlsplit
 
 from bs4 import NavigableString, Tag
 
-from ..document import MAX_IMAGE_SIZE
 from ..html import parse
-from .message import Archive, Attachment, Message, join_thread, oldest_first
+from .message import (
+    Archive,
+    Attachment,
+    Message,
+    join_thread,
+    oldest_first,
+    open_zip,
+)
 
 NAMES = {"actor.json", "outbox.json"}
 MAX_OUTBOX_SIZE = 500 * 1024 * 1024
@@ -31,26 +36,25 @@ _PUBLIC = {"https://www.w3.org/ns/activitystreams#Public", "as:Public"}
 
 
 def read(path: Path) -> Archive:
-    with zipfile.ZipFile(path) as archive:
-        if archive.getinfo("outbox.json").file_size > MAX_OUTBOX_SIZE:
-            msg = "outbox.json is too large"
-            raise ValueError(msg)
-        activities = json.loads(archive.read("outbox.json"))["orderedItems"]
-        sizes = {info.filename: info.file_size for info in archive.infolist()}
-        ignored: Counter[str] = Counter()
-        notes: dict[str, dict[str, Any]] = {}
-        for activity in activities:
-            note = activity["object"]
-            if activity["type"] != "Create" or not isinstance(note, dict):
-                ignored["boost"] += 1
-            elif not _is_public(note):
-                ignored["private"] += 1
-            else:
-                notes[note["id"]] = note
-        messages = {
-            identifier: _message(archive, sizes, note)
-            for identifier, note in notes.items()
-        }
+    archive = open_zip(path)
+    if archive.getinfo("outbox.json").file_size > MAX_OUTBOX_SIZE:
+        msg = "outbox.json is too large"
+        raise ValueError(msg)
+    activities = json.loads(archive.read("outbox.json"))["orderedItems"]
+    sizes = {info.filename: info.file_size for info in archive.infolist()}
+    ignored: Counter[str] = Counter()
+    notes: dict[str, dict[str, Any]] = {}
+    for activity in activities:
+        note = activity["object"]
+        if activity["type"] != "Create" or not isinstance(note, dict):
+            ignored["boost"] += 1
+        elif not _is_public(note):
+            ignored["private"] += 1
+        else:
+            notes[note["id"]] = note
+    messages = {
+        identifier: _message(path, sizes, note) for identifier, note in notes.items()
+    }
     return Archive(path, "Mastodon", _threads(notes, messages), ignored)
 
 
@@ -108,35 +112,40 @@ def _root(notes: Mapping[str, Mapping[str, Any]], identifier: str) -> str:
         identifier = parent
 
 
-def _message(
-    archive: zipfile.ZipFile, sizes: Mapping[str, int], note: Mapping[str, Any]
-) -> Message:
+def _message(path: Path, sizes: Mapping[str, int], note: Mapping[str, Any]) -> Message:
     return Message(
         key=note["id"].rstrip("/").rpartition("/")[2],
         url=note.get("url") or note["id"],
         published=datetime.fromisoformat(note["published"]),
         text=text_of(note.get("content") or ""),
-        images=tuple(_images(archive, sizes, note.get("attachment") or [])),
+        images=tuple(_images(path, sizes, note.get("attachment") or [])),
+        popularity=_popularity(note),
+    )
+
+
+def _popularity(note: Mapping[str, Any]) -> int | None:
+    totals = [(note.get(key) or {}).get("totalItems") for key in ("likes", "shares")]
+    return (
+        sum(total or 0 for total in totals)
+        if any(total is not None for total in totals)
+        else None
     )
 
 
 def _images(
-    archive: zipfile.ZipFile,
-    sizes: Mapping[str, int],
-    attachments: Iterable[Mapping[str, Any]],
+    path: Path, sizes: Mapping[str, int], attachments: Iterable[Mapping[str, Any]]
 ) -> Iterable[Attachment]:
     for attachment in attachments:
         # The others are previews of links.
         if "url" not in attachment:
             continue
         name = attachment["url"].lstrip("/")
-        size = sizes.get(name, 0)
-        readable = name in sizes and size < MAX_IMAGE_SIZE
         yield Attachment(
             name.rpartition("/")[2],
             attachment.get("name") or "",
-            size,
-            archive.read(name) if readable else None,
+            sizes.get(name, 0),
+            path,
+            name if name in sizes else "",
         )
 
 

@@ -34,14 +34,14 @@ def load_message(
     warnings = []
     images = []
     for image in message.images:
-        if image.content is None and image.size >= MAX_IMAGE_SIZE:
-            problems.append(f"image {image.name}: too large, the limit is 4 MB")
-        elif image.content is None:
+        if not image.is_present:
             warnings.append(f"image {image.name}: not in the archive")
-        elif not is_image(image.content):
+        elif image.size >= MAX_IMAGE_SIZE:
+            problems.append(f"image {image.name}: too large, the limit is 4 MB")
+        elif not is_image(content := image.read()):
             warnings.append(f"not an image, not sent: {image.name}")
         else:
-            images.append(Image(image.name, image.content, image.caption, ""))
+            images.append(Image(image.name, content, image.caption, ""))
     if not images and is_bare(message):
         problems.append(BARE)
     reference = overrides.get("reference", message.url)

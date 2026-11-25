@@ -97,6 +97,7 @@ It is a CSV file, one line for each document:
 | `source` | path, relative to the catalog; `archive.zip#id` for a message of an archive |
 | `type` | `press-release`, `article`, `event`, `post` or `skip`; empty while undecided |
 | `reference` `title` `published_at` `publisher` `genre` `section` `topic` `sector` | as in a document |
+| `popularity` | for a message, how many liked or shared it; never sent |
 | `note` | free text, never sent |
 
 - `create` fills in what the documents say and refuses to overwrite a file. `update` appends the new documents and touches no existing line.
@@ -108,21 +109,22 @@ Options of content verbs on a catalog: `--only PATTERN` (repeatable, matches `so
 
 ## Archives of social networks
 
-`catalog create` also takes the archive of an account, when it is named: Mastodon (`.zip`) or Bluesky (`.car`). Each message is a line, of type `post` or, for a reason given in `note`, `skip`:
+`catalog create` also takes the archive of an account, when it is named: Mastodon or Twitter (`.zip`), or Bluesky (`.car`). Each message is a line, of type `post` or, for a reason given in `note`, `skip`:
 
 | Message | Line |
 |---|---|
 | original and public, with the rest of its thread | `post` |
 | reply to someone, or in the thread of someone else | `skip` |
 | begins with a mention (Mastodon): a reply whose parent was deleted | `skip` |
-| unlisted (Mastodon) | `skip` |
-| same text within 3 days as one already listed, from another network | `skip`, `same as URL` |
+| unlisted (Mastodon); withheld or sensitive, or from an account that was protected at some time (Twitter) | `skip` |
+| quotes a message, holds the text of someone else (`“@x: …”`, `RT @x`), or nothing but a link (Twitter) | `skip` |
+| same text within 3 days as one already listed, on the same network or another | `skip`, `same as URL` |
 | nothing to read and no image | `skip` |
-| private, or someone else's (boost, repost) | no line, and it cannot be asked for |
+| private, or someone else's (boost, repost, retweet) | no line, and it cannot be asked for |
 
 A type can be changed, but a private message is never read, even when a line names it. Archives are compared in the order they are given, so give first the one that holds images: Bluesky's does not. The reference of a message is its URL, so a newer archive of the same account only adds what is new. The `title` column is the beginning of the text, to recognise it, and is not sent.
 
-Links are written in full, mentions as `@name@server`, and the declared language is ignored, as it is often wrong. Likes, bookmarks, follows and blocks are not read.
+Links are written in full, mentions as `@name@server`, and the declared language is ignored, as it is often wrong. Only the files of public messages and their images are opened: not the likes, bookmarks, direct messages, deleted messages or addresses. Shortened links (`bit.ly`, `buff.ly`…) are kept as they are.
 
 ## Sending
 

@@ -17,9 +17,11 @@ from make_archives import (
     facet,
     make_car,
     make_mastodon,
+    make_twitter,
     note,
     post,
     reply_to,
+    tweet,
     uri,
 )
 
@@ -123,8 +125,96 @@ def test_mastodon_images(tmp_path: Path) -> None:
         cover=PNG,
     )
     first, second = read_archive(path).messages["1"].images
-    assert (first.name, first.caption, first.content) == ("cover.png", "Une image", PNG)
-    assert (second.caption, second.content) == ("", None)
+    assert (first.name, first.caption, first.read()) == ("cover.png", "Une image", PNG)
+    assert (second.caption, second.is_present) == ("", False)
+
+
+# --- Twitter ---------------------------------------------------------------
+
+
+def test_twitter_threads_and_replies(tmp_path: Path) -> None:
+    path = make_twitter(
+        tmp_path / "t.zip",
+        tweet("1", "Un fil"),
+        tweet("2", "suite", reply="1"),
+        tweet("3", "@x oui", reply="999"),
+        tweet("4", "encore", reply="3"),
+        tweet("5", "@x bonjour"),
+        tweet("6", ".@x bonjour à tous"),
+        tweet("7", "RT @x: du texte"),
+    )
+    assert reasons(path) == {
+        "1": "",
+        "3": "reply",
+        "4": "in the thread of someone else",
+        "5": "reply",
+        "6": "",
+    }
+    archive = read_archive(path)
+    message = archive.messages["1"]
+    assert message.text == "Un fil\n\nsuite"
+    assert message.url == "https://twitter.com/me/status/1"
+    assert message.published.isoformat() == "2012-05-01T10:00:01+00:00"
+    assert message.popularity == 5
+    assert archive.ignored == {"retweet": 1}
+
+
+@pytest.mark.parametrize(
+    ("text", "reason"),
+    [
+        ("“@x: une phrase” oui", "text of someone else"),
+        ("Bravo ! RT @x: une phrase", "text of someone else"),
+        ("Un article, via @x", ""),
+        ("Oui https://twitter.com/x/status/12", "quotes a message"),
+        ("https://x.test/a", "nothing but a link"),
+        ("@", "reply"),
+    ],
+)
+def test_twitter_originals_left_out(tmp_path: Path, text: str, reason: str) -> None:
+    path = make_twitter(tmp_path / "t.zip", tweet("1", text))
+    assert reasons(path) == {"1": reason}
+
+
+@pytest.mark.parametrize(
+    ("values", "reason"),
+    [
+        ({"withheld_in_countries": ["FR"]}, "withheld"),
+        ({"possibly_sensitive": True}, "sensitive"),
+        ({"possibly_sensitive": False}, ""),
+    ],
+)
+def test_twitter_flags(tmp_path: Path, values: dict, reason: str) -> None:
+    path = make_twitter(tmp_path / "t.zip", tweet("1", "Un", **values))
+    assert reasons(path) == {"1": reason}
+
+
+def test_twitter_a_protected_account_is_left_out(tmp_path: Path) -> None:
+    path = make_twitter(tmp_path / "t.zip", tweet("1", "Un"), protected=True)
+    assert "protected" in reasons(path)["1"]
+
+
+def test_twitter_text_and_images(tmp_path: Path) -> None:
+    photo = {"url": "https://t.co/i", "media_url": "http://p.test/i.png"}
+    video = {"url": "https://t.co/v", "media_url": "http://p.test/v.png"}
+    entities = {
+        "urls": [{"url": "https://t.co/a", "expanded_url": "https://x.test/long"}],
+    }
+    path = make_twitter(
+        tmp_path / "t.zip",
+        tweet(
+            "1",
+            "R&amp;D https://t.co/a https://t.co/i https://t.co/v",
+            entities=entities,
+            extended_entities={
+                "media": [{**photo, "type": "photo"}, {**video, "type": "video"}]
+            },
+        ),
+        images={"1-i.png": PNG, "1-v.png": PNG},
+    )
+    message = read_archive(path).messages["1"]
+    assert message.text == "R&D https://x.test/long"
+    assert [image.is_present for image in message.images] == [True, False]
+    assert message.images[0].read() == PNG
 
 
 # --- Bluesky ---------------------------------------------------------------
@@ -181,7 +271,7 @@ def test_bluesky_text(tmp_path: Path) -> None:
     assert messages["b"].text == "Lire\n\nhttps://z.test/"
     assert messages["c"].text == "Titre\n\nhttps://z.test/"
     (image,) = messages["d"].images
-    assert (image.caption, image.content) == ("Alt", None)
+    assert (image.caption, image.is_present) == ("Alt", False)
 
 
 @pytest.mark.parametrize(

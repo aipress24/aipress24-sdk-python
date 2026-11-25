@@ -58,6 +58,51 @@ def make_mastodon(path: Path, *activities: Any, **files: bytes) -> Path:
     return path
 
 
+# --- Twitter ---------------------------------------------------------------
+
+
+def tweet(key: str, text: str, **values: Any) -> dict[str, Any]:
+    reply = values.pop("reply", None)
+    parent = {"in_reply_to_status_id_str": reply} if reply else {}
+    return {
+        "tweet": {
+            "id_str": key,
+            "full_text": text,
+            "created_at": f"Tue May 01 10:00:{int(key):02} +0000 2012",
+            "entities": {},
+            "favorite_count": "3",
+            "retweet_count": "2",
+            **parent,
+            **values,
+        }
+    }
+
+
+def make_twitter(
+    path: Path,
+    *tweets: Any,
+    protected: bool = False,
+    images: dict[str, bytes] | None = None,
+) -> Path:
+    files = {
+        "manifest.js": {
+            "userInfo": {"userName": "me"},
+            "dataTypes": {"tweets": {"files": [{"fileName": "data/tweets.js"}]}},
+        },
+        "tweets.js": tweets,
+        "protected-history.js": [{"protectedHistory": {}}] if protected else [],
+    }
+    with zipfile.ZipFile(path, "w") as archive:
+        for name, value in files.items():
+            script = f"window.YTD.{name} = {json.dumps(value)}"
+            archive.writestr(f"data/{name}", script)
+        archive.writestr("data/direct-messages.js", "not read")
+        archive.writestr("data/deleted-tweets.js", "not read")
+        for name, content in (images or {}).items():
+            archive.writestr(f"data/tweets_media/{name}", content)
+    return path
+
+
 # --- Bluesky ---------------------------------------------------------------
 
 

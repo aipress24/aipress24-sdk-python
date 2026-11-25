@@ -24,7 +24,7 @@ SKIP = "skip"
 POST = "post"
 TYPES = ("press-release", "article", "event", POST, SKIP)
 VALUE_COLUMNS = ("reference", "title", "published_at", "publisher", *CLASSIFICATION)
-COLUMNS = ("source", "type", *VALUE_COLUMNS, "note")
+COLUMNS = ("source", "type", *VALUE_COLUMNS, "popularity", "note")
 
 
 @dataclass(frozen=True)
@@ -151,7 +151,7 @@ def _describe_message(
     note = message.reason
     if not note and (same := find_similar(message, kept)):
         note = f"same as {same.url}"
-    if not note and is_bare(message) and not any(i.content for i in message.images):
+    if not note and is_bare(message) and not any(i.is_present for i in message.images):
         note = BARE
     return {
         **dict.fromkeys(COLUMNS, ""),
@@ -160,6 +160,7 @@ def _describe_message(
         "reference": message.url,
         "title": title_of(message),
         "published_at": message.published.isoformat(),
+        "popularity": _cell(message.popularity),
         "note": note,
     }
 
@@ -176,6 +177,7 @@ def _describe(catalog: Path, path: Path) -> dict[str, str]:
         "source": _relative(catalog, path),
         "type": "",
         **{key: _cell(matter.get(key)) for key in VALUE_COLUMNS},
+        "popularity": "",
         "note": note,
     }
 
