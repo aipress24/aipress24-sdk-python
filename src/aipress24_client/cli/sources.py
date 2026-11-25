@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from fnmatch import fnmatch
 from pathlib import Path
@@ -15,6 +15,7 @@ from .catalog import Row, read_rows
 from .document import SUFFIXES, Document, load_document
 from .errors import CliError
 from .html import is_url
+from .links import Link, read_links
 from .message_document import load_message
 
 
@@ -48,11 +49,12 @@ def _read_source(
     source: Path, kind: str, only: Sequence[str], selection: Selection
 ) -> Iterator[Document]:
     if source.suffix.lower() == ".csv":
+        links = read_links(source)
         for row in read_rows(source):
             if row.type != kind:
                 selection.left_out[row.type or "undecided"] += 1
             else:
-                document = load_row(source, row)
+                document = load_row(source, row, links)
                 if _matches(document, only):
                     yield document
     else:
@@ -61,10 +63,12 @@ def _read_source(
             yield document
 
 
-def load_row(catalog: Path, row: Row) -> Document:
+def load_row(catalog: Path, row: Row, links: Mapping[str, Link]) -> Document:
     home = catalog.parent
     if row.key:
-        return load_message(row.source, row.key, home=home, overrides=row.values)
+        return load_message(
+            row.source, row.key, home=home, overrides=row.values, links=links
+        )
     return load_document(row.source, home=home, overrides=row.values)
 
 

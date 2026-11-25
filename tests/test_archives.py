@@ -117,6 +117,11 @@ def test_mastodon_text() -> None:
     )
 
 
+def test_mastodon_a_malformed_mention() -> None:
+    html = '<p><a href="https://[x" class="u-url mention">@<span>you</span></a></p>'
+    assert text_of(html) == "@you"
+
+
 def test_mastodon_images(tmp_path: Path) -> None:
     path = make_mastodon(
         tmp_path / "a.zip",

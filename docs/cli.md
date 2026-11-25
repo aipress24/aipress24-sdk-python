@@ -27,7 +27,7 @@ aipress24 <noun> <verb> [ARGUMENT...] [--option...]
 | `article` | an article of yours (journalists) | all the content verbs | 2 |
 | `event` | an event of yours | all the content verbs | 2 |
 | `post` | a message of yours on the wall | `check` `status` `publish` `delete` `list` `show` | 1 |
-| `catalog` | the local table of the documents to sort and classify | `create` `update` `status` | 1 |
+| `catalog` | the local table of the documents to sort and classify | `create` `update` `resolve` `status` | 1 |
 | `vocabulary` | the values a classification accepts | `list` `search` | 1 |
 | `publisher` | an organisation you may publish for | `list` | 1 |
 | `auth` | your access to a site | `login` `logout` `status` | 1 |
@@ -124,7 +124,13 @@ Options of content verbs on a catalog: `--only PATTERN` (repeatable, matches `so
 
 A type can be changed, but a private message is never read, even when a line names it. Archives are compared in the order they are given, so give first the one that holds images: Bluesky's does not. The reference of a message is its URL, so a newer archive of the same account only adds what is new. The `title` column is the beginning of the text, to recognise it, and is not sent.
 
-Links are written in full, mentions as `@name@server`, and the declared language is ignored, as it is often wrong. Only the files of public messages and their images are opened: not the likes, bookmarks, direct messages, deleted messages or addresses. Shortened links (`bit.ly`, `buff.ly`…) are kept as they are.
+Links are written in full, mentions as `@name@server`, and the declared language is ignored, as it is often wrong. Only the files of public messages and their images are opened: not the likes, bookmarks, direct messages, deleted messages or addresses. 
+
+### Shortened links
+
+`catalog resolve posts.csv` asks `bit.ly`, `buff.ly`… where the links of the posts lead, once each, and writes the answers in `posts.links.csv`, next to the catalog. From then on, the targets replace the links in what is checked and sent. The file can be corrected by hand: `target` is what is used, and a link whose target is empty is kept as it is. What failed for a passing reason is asked again the next time; a dead link is not.
+
+Only known shorteners are asked, never the sites they lead to. It is worth doing before the first `publish`, as a post cannot be modified: `check` mentions the shortened links that remain.
 
 ## Posts
 

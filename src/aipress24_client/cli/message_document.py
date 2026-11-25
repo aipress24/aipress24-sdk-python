@@ -7,11 +7,14 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
+from types import MappingProxyType
 
 from .archives import Message, read_archive
 from .document import MAX_IMAGE_SIZE, Document, Image, is_image, published_at
 from .errors import CliError
+from .links import Link, expand, find_links
 
 BARE = "no text and no image, mentions aside"
 MAX_IMAGES = 12
@@ -21,9 +24,14 @@ _MENTION = re.compile(r"@\S+")
 
 
 def load_message(
-    path: Path, key: str, *, home: Path, overrides: Mapping[str, str]
+    path: Path,
+    key: str,
+    *,
+    home: Path,
+    overrides: Mapping[str, str],
+    links: Mapping[str, Link] = MappingProxyType({}),
 ) -> Document:
-    """Read a message; a catalog may correct its date and its reference."""
+    """Read a message; a catalog may correct its date, its reference, its links."""
     source = path.with_name(f"{path.name}#{key}")
     try:
         message = read_archive(path).messages.get(key)
@@ -32,9 +40,12 @@ def load_message(
     if message is None:
         problem = "not in the archive, or not public"
         return Document(source, home, source.name, "", "", {}, (), (problem,), ())
+    message = replace(message, text=expand(message.text, links))
     problems = []
     warnings = []
     images = []
+    if short := find_links([message.text]):
+        warnings.append(f"shortened links: {', '.join(short)}")
     for image in message.images:
         if not image.is_present:
             warnings.append(f"image {image.name}: not in the archive")
@@ -68,6 +79,12 @@ def load_message(
         problems=tuple(problems),
         warnings=tuple(warnings),
     )
+
+
+def message_text(path: Path, key: str) -> str:
+    """The text of a message, as it is in the archive."""
+    message = read_archive(path).messages.get(key) if key else None
+    return message.text if message else ""
 
 
 def is_bare(message: Message) -> bool:

@@ -168,4 +168,9 @@ def _link_text(link: Tag) -> str:
         return href
     if "hashtag" in classes or text.startswith("#"):
         return text
-    return text if "@" in text[1:] else f"{text}@{urlsplit(href).netloc}"
+    if "@" in text[1:]:
+        return text
+    try:
+        return f"{text}@{urlsplit(href).netloc}"
+    except ValueError:  # such as an unclosed "[" in the host
+        return text

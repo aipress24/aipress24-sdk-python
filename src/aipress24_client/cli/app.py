@@ -16,11 +16,12 @@ from typing import Annotated, Literal
 from cyclopts import App, CycloptsError, Parameter
 
 from .. import DEFAULT_BASE_URL, ApiError, __version__
-from . import catalog, post, press_release
+from . import catalog, links, post, press_release
 from .access import find_token, forget_token, store_token
 from .context import Context, Ctx
 from .document import CLASSIFICATION
 from .errors import CliError, UsageError
+from .message_document import message_text
 from .press_release import api_message, plan_document, show_status
 from .sources import load_row
 from .vocabulary import search as search_values
@@ -33,7 +34,11 @@ app = App(
     version=__version__,
     result_action="return_value",
     exit_on_error=False,
+    suppress_keyboard_interrupt=False,
 )
+# Cyclopts does not pass this one on.
+app.meta.suppress_keyboard_interrupt = False
+
 catalog_app = App(name="catalog", help="The table in which documents are sorted.")
 vocabulary_app = App(name="vocabulary", help="The values a classification accepts.")
 publisher_app = App(name="publisher", help="The organisations you may publish for.")
@@ -135,8 +140,9 @@ def catalog_update(table: Path, /, *paths: Path, ctx: Ctx) -> None:
 @catalog_app.command(name="status")
 def catalog_status(table: Path, /, *, ctx: Ctx) -> None:
     """Show the type of each document, and compare it with the site."""
+    known = links.read_links(table)
     for row in catalog.read_rows(table):
-        document = load_row(table, row)
+        document = load_row(table, row, known)
         if row.type == press_release.KIND:
             show_status(ctx, plan_document(ctx.site, document))
         elif row.type == post.KIND:
@@ -151,6 +157,44 @@ def catalog_status(table: Path, /, *, ctx: Ctx) -> None:
                 reference=document.reference,
             )
     ctx.summary("documents")
+
+
+@catalog_app.command(name="resolve")
+def catalog_resolve(table: Path, /, *, ctx: Ctx) -> None:
+    """Find what the shortened links of the posts lead to.
+
+    Only the shorteners are asked. The answers are written next to the table, where
+    they can be corrected, and are used from then on.
+    """
+    # As they are in the archive: what is already known is in the other file.
+    found = links.find_links(
+        text
+        for row in catalog.read_rows(table)
+        if row.type == post.KIND and (text := message_text(row.source, row.key))
+    )
+    known = links.read_links(table)
+    ctx.say(f"{len(found)} shortened links.")
+    resolved: dict[str, links.Link] = dict(known)
+
+    def report(link: links.Link) -> None:
+        resolved[link.link] = link
+        ctx.result(
+            "resolved" if link.target else "kept",
+            link.link,
+            link.target or link.note,
+            ok=link.is_settled,
+            link=link.link,
+            target=link.target,
+            note=link.note,
+        )
+
+    try:
+        links.resolve_all(found, known, report)
+    finally:
+        # What was found before an interruption is not asked again.
+        if resolved:
+            ctx.say(f"Written in {links.write_links(table, resolved)}.")
+    ctx.summary("links")
 
 
 def _report_listing(ctx: Context, table: Path, listing: catalog.Listing) -> None:

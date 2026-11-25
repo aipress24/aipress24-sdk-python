@@ -141,6 +141,13 @@ def test_remote_images_are_mentioned(folder: Path) -> None:
     assert "https://acme.test/x.png" in document.warnings[0]
 
 
+def test_malformed_links_are_left_as_they_are(folder: Path) -> None:
+    edit(folder, "[ici](/contact/)", '<a href="http://[x">ici</a>')
+    document = load(folder)
+    assert document.problems == ()
+    assert 'href="http://[x"' in document.fields["contenu"]
+
+
 def test_relative_links_need_a_url_as_reference(folder: Path) -> None:
     edit(folder, "https://acme.test/news/widget/", "widget")
     assert "relative links" in load(folder).warnings[0]

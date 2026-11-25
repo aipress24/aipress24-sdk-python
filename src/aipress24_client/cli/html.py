@@ -97,12 +97,15 @@ def _resolve_links(root: Tag, base_url: str) -> bool:
     resolved = True
     for tag in root.find_all("a", href=True):
         href = str(tag["href"])
-        if href.startswith("#") or urlsplit(href).scheme:
+        try:
+            if href.startswith("#") or urlsplit(href).scheme:
+                continue
+            if is_url(base_url):
+                tag["href"] = urljoin(base_url, href)
+            else:
+                resolved = False
+        except ValueError:  # such as an unclosed "[": left as it is
             continue
-        if is_url(base_url):
-            tag["href"] = urljoin(base_url, href)
-        else:
-            resolved = False
     return resolved
 
 

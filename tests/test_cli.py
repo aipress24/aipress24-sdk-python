@@ -45,6 +45,7 @@ def test_a_wrong_command_line(
         ["catalog", "create"],
         ["catalog", "update"],
         ["catalog", "status"],
+        ["catalog", "resolve"],
         ["vocabulary", "list"],
         ["vocabulary", "search"],
         ["publisher", "list"],

@@ -64,6 +64,9 @@ ignore = ["E501"]
 "src/aipress24_client/client.py" = [
     "S310", # Client checks that base_url is http(s), and only requests that origin
 ]
+"src/aipress24_client/cli/links.py" = [
+    "S310", # only asks the http(s) URLs of known shorteners
+]
 "tests/*" = ["S101", "S105", "S106"]
 
 [tool.ty.environment]

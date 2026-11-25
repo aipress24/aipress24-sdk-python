@@ -48,7 +48,7 @@ def test_a_news_becomes_a_document(tmp_path: Path) -> None:
     abilian_news.main(site, output)
     catalog = output / "catalog.csv"
     (row,) = read_rows(catalog)
-    document = load_row(catalog, row)
+    document = load_row(catalog, row, {})
 
     assert row.type == "press-release"
     assert document.problems == ()
